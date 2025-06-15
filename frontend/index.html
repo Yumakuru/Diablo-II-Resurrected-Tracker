@@ -1,0 +1,2990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D2R Kill Counter & Item Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 255, 65, 0.3);
+        }
+
+        .header h1 {
+            color: #000;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+
+        .status.active {
+            background: #00ff41;
+            color: #000;
+            animation: pulse 2s infinite;
+        }
+
+        .status.inactive {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .profile-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-left: auto;
+        }
+
+        select, input, button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        select {
+            background: #333;
+            color: #fff;
+            border: 2px solid #555;
+        }
+
+        select:focus {
+            border-color: #00ff41;
+            outline: none;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+
+        input {
+            background: #333;
+            color: #fff;
+            border: 2px solid #555;
+        }
+
+        input:focus {
+            border-color: #00ff41;
+            outline: none;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+
+        button {
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        button:hover:not(:disabled) {
+            background: linear-gradient(45deg, #00cc33, #009926);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 255, 65, 0.4);
+        }
+
+        button:disabled {
+            background: #666 !important;
+            color: #999 !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        button.danger {
+            background: linear-gradient(45deg, #ff4444, #cc3333);
+            color: #fff;
+        }
+
+        button.danger:hover:not(:disabled) {
+            background: linear-gradient(45deg, #cc3333, #aa2222);
+        }
+
+        button.filter-off {
+            background: linear-gradient(45deg, #666, #555);
+            color: #fff;
+        }
+
+        button.filter-off:hover:not(:disabled) {
+            background: linear-gradient(45deg, #555, #444);
+        }
+
+        .filter-info {
+            position: relative;
+            display: inline-block;
+        }
+
+        .filter-tooltip {
+            visibility: hidden;
+            width: 300px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 8px;
+            padding: 15px;
+            position: absolute;
+            z-index: 1000;
+            top: 120%;
+            left: 50%;
+            margin-left: -150px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 1px solid #555;
+            font-size: 0.9em;
+            line-height: 1.4;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+        }
+
+        .warning-banner {
+            background: linear-gradient(45deg, #FF6B35, #FF4500);
+            color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(255, 107, 53, 0.3);
+            display: none;
+        }
+
+        .warning-banner.show {
+            display: block;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .profile-warning {
+            background: rgba(255, 107, 53, 0.1);
+            border: 1px solid #FF6B35;
+            color: #FF6B35;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        .profile-warning strong {
+            color: #FF4500;
+        }
+
+        .filter-tooltip::before {
+            content: "";
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: transparent transparent #333 transparent;
+        }
+
+        .filter-info:hover .filter-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .stat-card h3 {
+            color: #00ff41;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-label {
+            color: #ccc;
+            font-size: 1.1em;
+        }
+
+        .stat-value {
+            color: #00ff41;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .total-row {
+            border-top: 2px solid #00ff41;
+            margin-top: 15px;
+            padding-top: 15px;
+            font-size: 1.1em;
+        }
+
+        .total-row .stat-value {
+            font-size: 1.4em;
+        }
+
+        /* ========== BESONDERE HERVORHEBUNG FÜR RUNS-TO-NEXT-LEVEL ========== */
+        .highlight-row {
+            background: linear-gradient(90deg, rgba(0, 255, 65, 0.1), rgba(0, 255, 65, 0.05));
+            border: 2px solid #00ff41;
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin: 15px 0;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        .highlight-row .stat-label {
+            color: #00ff41;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .highlight-row .stat-value {
+            color: #ffffff;
+            font-size: 1.5em;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        @keyframes glow {
+            from { box-shadow: 0 0 5px rgba(0, 255, 65, 0.2); }
+            to { box-shadow: 0 0 20px rgba(0, 255, 65, 0.4); }
+        }
+
+        .runs-method {
+            color: #888;
+            font-size: 0.8em;
+            font-style: italic;
+            margin-top: 5px;
+        }
+
+        .stat-note {
+            margin-top: 15px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            font-size: 0.85em;
+            color: #ccc;
+            border-left: 3px solid #00ff41;
+            line-height: 1.3;
+        }
+
+        .stat-highlight {
+            color: #00ff41;
+            font-weight: bold;
+        }
+
+        .stat-secondary {
+            color: #ffa500;
+        }
+
+        .stat-warning {
+            color: #ff6b35;
+        }
+
+        .items-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+        }
+
+        .items-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .items-header h3 {
+            color: #00ff41;
+            font-size: 1.5em;
+        }
+
+        .items-header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-status {
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .filter-status.enabled {
+            background: #00ff41;
+            color: #000;
+        }
+
+        .filter-status.disabled {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        /* ========== NEUE PAGINATION CONTROLS ========== */
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+
+        .pagination-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .pagination-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .pagination-info {
+            color: #ccc;
+            font-size: 0.9em;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .pagination-buttons button {
+            padding: 8px 12px;
+            font-size: 0.9em;
+            background: linear-gradient(45deg, #555, #444);
+            color: #fff;
+            border: 1px solid #777;
+        }
+
+        .pagination-buttons button:hover:not(:disabled) {
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+            color: #000;
+            border-color: #00ff41;
+        }
+
+        .pagination-buttons button.active {
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+            color: #000;
+            border-color: #00ff41;
+        }
+
+        .pagination-buttons button:disabled {
+            background: #333 !important;
+            color: #666 !important;
+            border-color: #444 !important;
+            cursor: not-allowed !important;
+        }
+
+        .page-input {
+            width: 60px !important;
+            padding: 6px 8px !important;
+            font-size: 0.9em !important;
+            text-align: center;
+        }
+
+        .items-per-page-select {
+            width: 80px !important;
+            padding: 6px 8px !important;
+            font-size: 0.9em !important;
+        }
+
+        .show-all-toggle {
+            background: linear-gradient(45deg, #4169E1, #1E90FF) !important;
+            color: #fff !important;
+            font-size: 0.9em !important;
+            padding: 8px 16px !important;
+        }
+
+        .show-all-toggle:hover:not(:disabled) {
+            background: linear-gradient(45deg, #1E90FF, #0066CC) !important;
+        }
+
+        .show-all-toggle.active {
+            background: linear-gradient(45deg, #00ff41, #00cc33) !important;
+            color: #000 !important;
+        }
+
+        .items-list {
+            max-height: 600px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .item-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border-left: 5px solid;
+            transition: all 0.3s ease;
+        }
+
+        .item-entry:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(8px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 4px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+            line-height: 1.3;
+            max-width: 100%;
+        }
+
+        .item-name-long {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            cursor: help;
+            position: relative;
+        }
+
+        .item-name-long:hover::after {
+            content: attr(data-full-name);
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            z-index: 1000;
+            max-width: 300px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border: 1px solid #555;
+        }
+
+        .item-name-long:hover::before {
+            content: "";
+            position: absolute;
+            bottom: 95%;
+            left: 10px;
+            border: 5px solid transparent;
+            border-top-color: #333;
+        }
+
+        .item-details {
+            color: #ccc;
+            font-size: 1em;
+        }
+
+        .item-affixes {
+            color: #ffa500;
+            font-size: 0.9em;
+            margin-top: 4px;
+            font-style: italic;
+            line-height: 1.2;
+        }
+
+        .item-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .edit-btn {
+            background: #555;
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .edit-btn:hover:not(:disabled) {
+            background: #00ff41;
+            color: #000;
+            transform: translateY(-2px);
+        }
+
+        .edit-btn:disabled {
+            background: #444 !important;
+            color: #666 !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+        }
+
+        .export-btn {
+            background: linear-gradient(45deg, #4169E1, #1E90FF);
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .export-btn:hover:not(:disabled) {
+            background: linear-gradient(45deg, #1E90FF, #0066CC);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(65, 105, 225, 0.4);
+        }
+
+        .item-time {
+            color: #888;
+            font-size: 0.9em;
+            text-align: right;
+            margin-left: 10px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            margin: 15% auto;
+            padding: 30px;
+            border: 1px solid #00ff41;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 50px rgba(0, 255, 65, 0.3);
+            color: #fff;
+        }
+
+        .modal h3 {
+            color: #00ff41;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .modal label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #555;
+            border-radius: 8px;
+            background: #333;
+            color: #fff;
+            font-size: 1.1em;
+            margin-bottom: 20px;
+            min-height: 44px;
+            resize: vertical;
+            overflow: hidden;
+            word-wrap: break-word;
+        }
+
+        .modal input:focus {
+            border-color: #00ff41;
+            outline: none;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+
+        .modal input.auto-grow {
+            height: auto;
+            min-height: 44px;
+            max-height: 120px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+        }
+
+        .modal-buttons button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-save {
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+            color: #000;
+            font-weight: bold;
+        }
+
+        .btn-save:hover:not(:disabled) {
+            background: linear-gradient(45deg, #00cc33, #009926);
+            transform: translateY(-2px);
+        }
+
+        .btn-cancel {
+            background: #666;
+            color: #fff;
+        }
+
+        .btn-cancel:hover:not(:disabled) {
+            background: #555;
+            transform: translateY(-2px);
+        }
+
+        .btn-toggle {
+            background: linear-gradient(45deg, #FF6B35, #FF4500);
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .btn-toggle:hover:not(:disabled) {
+            background: linear-gradient(45deg, #FF4500, #DC143C);
+            transform: translateY(-2px);
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .suggestions-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #2a2a2a;
+            border: 1px solid #00ff41;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1001;
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #444;
+            transition: background 0.2s;
+        }
+
+        .suggestion-item:hover {
+            background: #00ff41;
+            color: #000;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .edit-options {
+            margin: 15px 0;
+        }
+
+        .edit-options label {
+            display: block;
+            margin-bottom: 8px;
+            cursor: pointer;
+            color: #ccc;
+        }
+
+        .edit-options input[type="radio"] {
+            margin-right: 8px;
+            width: auto;
+            padding: 0;
+        }
+
+        .selected-preview {
+            background: #333;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border-left: 3px solid #00ff41;
+        }
+
+        .selected-preview span {
+            color: #00ff41;
+            font-weight: bold;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: -10px;
+        }
+
+        .close:hover {
+            color: #00ff41;
+        }
+
+        /* Debug Panel Styles */
+        .debug-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ff41;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.8em;
+            z-index: 2000;
+            display: none;
+            max-width: 300px;
+        }
+
+        .debug-panel.show {
+            display: block;
+        }
+
+        .debug-info {
+            margin-bottom: 8px;
+            padding: 4px;
+            border-left: 2px solid #00ff41;
+            padding-left: 8px;
+        }
+
+        /* Quality Colors */
+        .quality-normal { border-left-color: #ffffff; }
+        .quality-superior { border-left-color: #0088ff; }
+        .quality-magic { border-left-color: #4444ff; }
+        .quality-rare { border-left-color: #ffff44; }
+        .quality-set { border-left-color: #44ff44; }
+        .quality-unique { border-left-color: #aa6644; }
+
+        .quality-normal .item-name { color: #ffffff; }
+        .quality-superior .item-name { color: #0088ff; }
+        .quality-magic .item-name { color: #4444ff; }
+        .quality-rare .item-name { color: #ffff44; }
+        .quality-set .item-name { color: #44ff44; }
+        .quality-unique .item-name { color: #aa6644; }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #00ff41;
+            font-size: 1.3em;
+        }
+
+        .error {
+            background: #ff4444;
+            color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #00ff41;
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00cc33;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .controls {
+                justify-content: center;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .profile-section, .filter-section {
+                margin-left: 0;
+                justify-content: center;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .items-header {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .items-header-right {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .export-btn {
+                margin-right: 0;
+                margin-bottom: 10px;
+            }
+
+            .debug-panel {
+                position: static;
+                margin-bottom: 20px;
+                max-width: none;
+            }
+
+            .pagination-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .pagination-left, .pagination-right {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 D2R Kill Counter & Item Tracker 🎮</h1>
+            <div id="gameStatus" class="status inactive">🔴 Waiting for D2R...</div>
+        </div>
+
+        <!-- Debug Panel (Hidden by default) -->
+        <div id="debugPanel" class="debug-panel">
+            <div class="debug-info"><strong>🔧 DEBUG MODE ACTIVE</strong></div>
+            <div class="debug-info">Hotkeys:</div>
+            <div class="debug-info">Ctrl+Shift+D = Debug State</div>
+            <div class="debug-info">Ctrl+Shift+T = Troubleshoot</div>
+            <div class="debug-info">Ctrl+Shift+R = Full Diagnostic</div>
+            <div class="debug-info">Ctrl+Shift+H = Toggle This Panel</div>
+        </div>
+
+        <!-- Warning Banner for Default Profile -->
+        <div id="defaultProfileWarning" class="warning-banner">
+            ⚠️ <strong>Known Issue:</strong> Item editing may not work correctly in the "default" profile. 
+            For reliable item editing, please create a new profile (e.g. "main", "runs", etc.) and use that instead.
+        </div>
+
+        <div class="controls">
+            <div class="profile-section">
+                <label for="profileSelect">Profile:</label>
+                <select id="profileSelect">
+                    <option value="default">default</option>
+                </select>
+                <input type="text" id="newProfileName" placeholder="New profile name" style="width: 180px;">
+                <button onclick="createProfile()">Create</button>
+                <button class="danger" onclick="deleteProfile()">Delete</button>
+            </div>
+            
+            <div class="filter-section">
+                <button class="danger" onclick="resetKills()">Reset Kills & Runs</button>
+                <div class="filter-info">
+                    <button id="filterToggle" onclick="toggleFilters()">🔍 Filters: ON</button>
+                    <div class="filter-tooltip" id="filterTooltip">
+                        <strong>Filtered Items:</strong><br>
+                        • Healing Potions (all types)<br>
+                        • Mana Potions (all types)<br>
+                        • Rejuvenation Potions (all types)<br>
+                        • Antidote Potions<br>
+                        • Thawing Potions<br>
+                        • Stamina Potions<br>
+                        • Arrows<br>
+                        • Bolts<br>
+                        • Gold<br><br>
+                        <em>These items are hidden from the item tracker when filters are enabled.</em>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>💀 Kill Counter</h3>
+                <div class="stat-row">
+                    <span class="stat-label">Normal:</span>
+                    <span class="stat-value" id="normalKills">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Champion:</span>
+                    <span class="stat-value" id="championKills">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Unique:</span>
+                    <span class="stat-value" id="uniqueKills">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Super Unique:</span>
+                    <span class="stat-value" id="superUniqueKills">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Minion:</span>
+                    <span class="stat-value" id="minionKills">0</span>
+                </div>
+                <div class="stat-row total-row">
+                    <span class="stat-label"><strong>Total:</strong></span>
+                    <span class="stat-value" id="totalKills">0</span>
+                </div>
+                <div class="stat-row" id="killRateRow" style="display: none;">
+                    <span class="stat-label">Per Minute:</span>
+                    <span class="stat-value" id="killsPerMinute">0</span>
+                </div>
+                <div class="stat-row" id="killRateHourRow" style="display: none;">
+                    <span class="stat-label">Per Hour:</span>
+                    <span class="stat-value" id="killsPerHour">0</span>
+                </div>
+            </div>
+
+            <!-- ========== VERBESSERTE XP TRACKING CARD ========== -->
+            <div class="stat-card">
+                <h3>📈 Experience Tracking</h3>
+                <div class="stat-row">
+                    <span class="stat-label">Level:</span>
+                    <span class="stat-value" id="playerLevel">1</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Current XP:</span>
+                    <span class="stat-value" id="currentXP">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">To Next Level:</span>
+                    <span class="stat-value" id="xpToNext">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">This Run:</span>
+                    <span class="stat-value" id="xpThisRun">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">XP/Hour:</span>
+                    <span class="stat-value" id="xpPerHour">0/h</span>
+                </div>
+                
+                <!-- ========== PROMINENTE RUNS-TO-NEXT-LEVEL ANZEIGE ========== -->
+                <div class="highlight-row" id="runsToNextRow" style="display: none;">
+                    <div class="stat-row" style="border: none; margin: 0; padding: 0;">
+                        <span class="stat-label">🎯 Runs to Next Level:</span>
+                        <span class="stat-value" id="runsToNext">0</span>
+                    </div>
+                    <div class="runs-method" id="runsMethod">Calculating...</div>
+                </div>
+
+                <!-- Alternative kleinere Anzeige falls keine genaue Berechnung möglich -->
+                <div class="stat-row" id="estimatedRunsRow" style="display: none;">
+                    <span class="stat-label">Est. Runs to Next:</span>
+                    <span class="stat-value stat-secondary" id="estimatedRuns">?</span>
+                </div>
+                
+                <div class="stat-note">
+                    📝 XP/Hour based on current session only. Runs estimate becomes more accurate after several completed runs.
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <h3>⏱️ Run Statistics</h3>
+                <div class="stat-row">
+                    <span class="stat-label">Current Run:</span>
+                    <span class="stat-value" id="currentRun">00:00:00</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Fastest Run:</span>
+                    <span class="stat-value" id="fastestRun">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Slowest Run:</span>
+                    <span class="stat-value" id="slowestRun">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Average Run:</span>
+                    <span class="stat-value" id="averageRun">-</span>
+                </div>
+                <div class="stat-row total-row">
+                    <span class="stat-label"><strong>Total Runs:</strong></span>
+                    <span class="stat-value" id="totalRuns">0</span>
+                </div>
+            </div>
+
+            <!-- ========== CHARACTER INFO CARD ========== -->
+            <div class="stat-card">
+                <h3>🎮 Character Info</h3>
+                <div class="stat-row">
+                    <span class="stat-label">Class:</span>
+                    <span class="stat-value" id="playerClass">Unknown</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Current Area:</span>
+                    <span class="stat-value" id="currentArea">Unknown</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Profile:</span>
+                    <span class="stat-value" id="currentProfileDisplay">default</span>
+                </div>
+                <div class="stat-row total-row">
+                    <span class="stat-label"><strong>Session Time:</strong></span>
+                    <span class="stat-value" id="sessionTime">00:00:00</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="items-section">
+            <div class="items-header">
+                <h3>💎 Item Tracker</h3>
+                <div class="items-header-right">
+                    <button class="export-btn" onclick="exportItems()" title="Export items to CSV">
+                        📊 Export CSV
+                    </button>
+                    <span id="filterStatus" class="filter-status enabled">Filters: ENABLED</span>
+                    <span class="stat-value">Total: <span id="totalItems">0</span></span>
+                </div>
+            </div>
+
+            <!-- ========== NEUE PAGINATION CONTROLS ========== -->
+            <div class="pagination-controls" id="paginationControls" style="display: none;">
+                <div class="pagination-left">
+                    <button class="show-all-toggle" id="showAllToggle" onclick="toggleShowAll()">
+                        📄 Show All Items
+                    </button>
+                    
+                    <select class="items-per-page-select" id="itemsPerPageSelect" onchange="changeItemsPerPage()">
+                        <option value="25">25/page</option>
+                        <option value="50" selected>50/page</option>
+                        <option value="100">100/page</option>
+                        <option value="200">200/page</option>
+                    </select>
+                </div>
+
+                <div class="pagination-right">
+                    <div class="pagination-info" id="paginationInfo">
+                        Page 1 of 1 (0 items)
+                    </div>
+                    
+                    <div class="pagination-buttons">
+                        <button onclick="goToFirstPage()" id="firstPageBtn" title="First Page">⏮️</button>
+                        <button onclick="goToPrevPage()" id="prevPageBtn" title="Previous Page">⬅️</button>
+                        
+                        <input type="number" class="page-input" id="pageInput" value="1" min="1" 
+                               onchange="goToPage(parseInt(this.value) - 1)" 
+                               onkeypress="if(event.key==='Enter') goToPage(parseInt(this.value) - 1)">
+                        
+                        <button onclick="goToNextPage()" id="nextPageBtn" title="Next Page">➡️</button>
+                        <button onclick="goToLastPage()" id="lastPageBtn" title="Last Page">⏭️</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="items-list" id="itemsList">
+                <div class="loading">No items found yet...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Item Modal -->
+    <div id="editItemModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditModal()">&times;</span>
+            <h3>✏️ Edit Item Name</h3>
+            
+            <!-- Default Profile Warning -->
+            <div id="modalProfileWarning" class="profile-warning" style="display: none;">
+                <strong>⚠️ Warning:</strong> You are editing an item in the "default" profile. 
+                Item name changes may not be saved properly. For reliable editing, 
+                please switch to a custom profile first.
+            </div>
+            
+            <!-- Simple Edit Mode (for normal items) -->
+            <div id="simpleEditMode">
+                <label for="newItemName">New Item Name:</label>
+                <input type="text" id="newItemName" placeholder="Enter new item name (no length limit)...">
+            </div>
+            
+            <!-- Smart Edit Mode (for Unique/Set items) -->
+            <div id="smartEditMode" style="display: none;">
+                <label for="searchItemName">Search for Unique/Set Item:</label>
+                <div class="search-container">
+                    <input type="text" id="searchItemName" placeholder="Type to search (e.g. 'tal', 'magefist')...">
+                    <div id="itemSuggestions" class="suggestions-dropdown"></div>
+                </div>
+                
+                <div class="edit-options">
+                    <label>
+                        <input type="radio" name="editMode" value="replace" checked> 
+                        Replace completely
+                    </label>
+                    <label>
+                        <input type="radio" name="editMode" value="extend"> 
+                        Keep original + add new (e.g. "Light Gauntlets - Magefist")
+                    </label>
+                </div>
+                
+                <div class="selected-preview">
+                    <strong>Preview:</strong> <span id="namePreview">Original Name</span>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+                <button class="btn-toggle" id="modeToggle" onclick="toggleEditMode()">🔍 Smart Mode</button>
+                <button class="btn-save" onclick="saveItemName()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let updateInterval;
+        let lastStats = null;
+        let lastItemsHash = '';
+
+        // ========== RACE CONDITION PROTECTION ==========
+        let editInProgress = false;
+        let lastUpdateHash = '';
+        let debugMode = false;
+
+        // ========== NEUE PAGINATION STATE VARIABLEN ==========
+        let currentPage = 0;
+        let itemsPerPage = 50;
+        let showAllItems = false;
+        let totalPages = 0;
+        let currentItemsData = null;
+
+        // Global Kill Rate Tracking
+        let globalKillRateData = {
+            totalActiveTime: 0,        // Total time spent in game (seconds)
+            sessionStartTime: null,    // When current game session started
+            isPaused: true,           // Whether tracking is currently paused
+            lastUpdateTime: null      // Last time we updated the timer
+        };
+
+        // Initialize the app
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 DOM Content Loaded - Initializing app...');
+            
+            setTimeout(() => {
+                console.log('📡 Starting update system and loading profiles...');
+                startUpdating();
+                loadProfiles();
+                
+                console.log('🔧 Initializing smart edit handlers...');
+                initializeSmartEditHandlers();
+                
+                console.log('🎯 Initializing debug system...');
+                initializeDebugSystem();
+                
+                console.log('✅ App initialization complete');
+            }, 1000);
+        });
+
+        // ========== DEBUG SYSTEM ==========
+        function initializeDebugSystem() {
+            // Debug Hotkeys
+            document.addEventListener('keydown', function(event) {
+                // Ctrl+Shift+D for Debug State
+                if (event.ctrlKey && event.shiftKey && event.key === 'D') {
+                    event.preventDefault();
+                    debugItemEditingState();
+                    verifyItemIndices();
+                }
+                
+                // Ctrl+Shift+T for Troubleshooting
+                if (event.ctrlKey && event.shiftKey && event.key === 'T') {
+                    event.preventDefault();
+                    troubleshootItemEditing();
+                }
+                
+                // Ctrl+Shift+R for Full Diagnostic
+                if (event.ctrlKey && event.shiftKey && event.key === 'R') {
+                    event.preventDefault();
+                    runFullDiagnostic();
+                }
+                
+                // Ctrl+Shift+H for Debug Panel Toggle
+                if (event.ctrlKey && event.shiftKey && event.key === 'H') {
+                    event.preventDefault();
+                    toggleDebugPanel();
+                }
+            });
+            
+            // Console functions for manual call
+            window.debugItemEditing = debugItemEditingState;
+            window.verifyIndices = verifyItemIndices;
+            window.testBackend = testBackendConnection;
+            window.diagnose = runFullDiagnostic;
+            window.troubleshoot = troubleshootItemEditing;
+            
+            console.log('🎯 Debug system initialized - Use Ctrl+Shift+H to toggle debug panel');
+        }
+
+        function toggleDebugPanel() {
+            debugMode = !debugMode;
+            const panel = document.getElementById('debugPanel');
+            if (debugMode) {
+                panel.classList.add('show');
+                console.log('🔧 Debug panel activated');
+            } else {
+                panel.classList.remove('show');
+                console.log('🔧 Debug panel deactivated');
+            }
+        }
+
+        // Global debug function for item editing
+        function debugItemEditingState() {
+            console.log('🔍 ==> ITEM EDITING DEBUG REPORT <==');
+            console.log('📊 Current State:');
+            console.log('   - currentEditingIndex:', currentEditingIndex);
+            console.log('   - currentOriginalName:', currentOriginalName);
+            console.log('   - isSmartMode:', isSmartMode);
+            console.log('   - selectedItemName:', selectedItemName);
+            console.log('   - editInProgress:', editInProgress);
+            
+            console.log('📋 Current Items Data:');
+            if (currentItemsData && currentItemsData.items) {
+                console.log('   - Total items in data:', currentItemsData.items.length);
+                console.log('   - Current page:', currentPage);
+                console.log('   - Items per page:', itemsPerPage);
+                console.log('   - Show all items:', showAllItems);
+                currentItemsData.items.forEach((item, index) => {
+                    const nameLength = item.name.length;
+                    const lengthInfo = nameLength > 60 ? ` (${nameLength} chars - LONG)` : ` (${nameLength} chars)`;
+                    console.log(`   - [ArrayIndex:${item.array_index}] "${item.name}"${lengthInfo} (${item.quality})`);
+                });
+            } else {
+                console.log('   - No current items data available');
+            }
+            
+            console.log('🌐 Frontend Elements:');
+            const modal = document.getElementById('editItemModal');
+            const newItemName = document.getElementById('newItemName');
+            const searchItemName = document.getElementById('searchItemName');
+            const namePreview = document.getElementById('namePreview');
+            
+            console.log('   - Modal visible:', modal ? modal.style.display !== 'none' : 'NOT FOUND');
+            console.log('   - Simple input value:', newItemName ? `"${newItemName.value}"` : 'NOT FOUND');
+            console.log('   - Smart input value:', searchItemName ? `"${searchItemName.value}"` : 'NOT FOUND');
+            console.log('   - Preview text:', namePreview ? `"${namePreview.textContent}"` : 'NOT FOUND');
+            
+            console.log('🔗 Backend Connection:');
+            console.log('   - window.go available:', !!window.go);
+            console.log('   - EditItemName available:', !!(window.go?.main?.App?.EditItemName));
+            
+            console.log('🔍 ==> END DEBUG REPORT <==');
+        }
+
+        // Function to verify array indices
+        function verifyItemIndices() {
+            console.log('🔍 ==> ARRAY INDEX VERIFICATION <==');
+            
+            if (!currentItemsData || !currentItemsData.items) {
+                console.log('❌ No current items data available for verification');
+                return false;
+            }
+            
+            const items = currentItemsData.items;
+            console.log(`📊 Verifying ${items.length} items`);
+            
+            // Check DOM elements
+            const itemEntries = document.querySelectorAll('.item-entry');
+            console.log(`📋 Found ${itemEntries.length} DOM elements`);
+            
+            if (itemEntries.length !== items.length) {
+                console.log('⚠️ WARNING: DOM count does not match item count!');
+            }
+            
+            let allValid = true;
+            
+            itemEntries.forEach((entry, domIndex) => {
+                const arrayIndex = parseInt(entry.getAttribute('data-array-index'));
+                const itemName = entry.getAttribute('data-item-name');
+                
+                console.log(`📋 DOM[${domIndex}]: ArrayIndex=${arrayIndex}, Name="${itemName}"`);
+                
+                // Find matching item in data
+                const matchingItem = items.find(item => item.array_index === arrayIndex);
+                if (!matchingItem) {
+                    console.log(`❌ ERROR: No matching item found for array index ${arrayIndex}`);
+                    allValid = false;
+                } else if (matchingItem.name !== itemName) {
+                    console.log(`❌ ERROR: Name mismatch at index ${arrayIndex}: Expected "${matchingItem.name}", Got "${itemName}"`);
+                    allValid = false;
+                }
+            });
+            
+            if (allValid) {
+                console.log('✅ All indices verified successfully');
+            } else {
+                console.log('❌ Index verification failed - inconsistencies found');
+            }
+            
+            console.log('🔍 ==> END INDEX VERIFICATION <==');
+            return allValid;
+        }
+
+        // Function to test backend connection
+        async function testBackendConnection() {
+            console.log('🔍 ==> BACKEND CONNECTION TEST <==');
+            
+            try {
+                console.log('🔧 Testing Go bindings...');
+                
+                if (!window.go) {
+                    throw new Error('window.go not available');
+                }
+                
+                if (!window.go.main) {
+                    throw new Error('window.go.main not available');
+                }
+                
+                if (!window.go.main.App) {
+                    throw new Error('window.go.main.App not available');
+                }
+                
+                console.log('✅ Go bindings available');
+                
+                // Test GetStats
+                console.log('📊 Testing GetStats...');
+                const stats = await window.go.main.App.GetStats();
+                console.log('✅ GetStats successful, got', stats.itemsData?.total_items || 0, 'total items');
+                
+                // Test EditItemName availability
+                if (!window.go.main.App.EditItemName) {
+                    throw new Error('EditItemName function not available');
+                }
+                console.log('✅ EditItemName function available');
+                
+                console.log('🔍 ==> BACKEND CONNECTION OK <==');
+                return true;
+                
+            } catch (error) {
+                console.log('❌ Backend connection failed:', error.message);
+                console.log('🔍 ==> BACKEND CONNECTION FAILED <==');
+                return false;
+            }
+        }
+
+        // Automatic diagnosis for problems
+        async function runFullDiagnostic() {
+            console.log('🏥 ==> RUNNING FULL DIAGNOSTIC <==');
+            
+            const results = {
+                backendConnection: await testBackendConnection(),
+                indexVerification: verifyItemIndices(),
+                editingState: currentEditingIndex !== -1,
+                modalState: document.getElementById('editItemModal')?.style.display !== 'none'
+            };
+            
+            console.log('📊 Diagnostic Results:', results);
+            
+            // Automatic troubleshooting
+            if (!results.backendConnection) {
+                console.log('🔧 Attempting to reconnect...');
+                alert('Backend connection lost. Please refresh the page.');
+            }
+            
+            if (!results.indexVerification) {
+                console.log('🔧 Index problems detected, refreshing item list...');
+                await updateStats();
+            }
+            
+            console.log('🏥 ==> DIAGNOSTIC COMPLETE <==');
+            return results;
+        }
+
+        // Function for item editing troubleshooting
+        async function troubleshootItemEditing() {
+            console.log('🔧 ==> TROUBLESHOOTING ITEM EDITING <==');
+            
+            // Reset all edit states
+            editInProgress = false;
+            currentEditingIndex = -1;
+            currentOriginalName = '';
+            selectedItemName = '';
+            isSmartMode = false;
+            
+            // Close modal
+            const modal = document.getElementById('editItemModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            
+            // Reload stats
+            await updateStats();
+            
+            console.log('✅ Item editing state reset');
+            console.log('🔧 ==> TROUBLESHOOTING COMPLETE <==');
+            
+            alert('Item editing state has been reset. You can now try editing again.');
+        }
+
+        function startUpdating() {
+            updateStats();
+            updateInterval = setInterval(updateStats, 1000); // Update every second
+        }
+
+        // ========== IMPROVED UPDATE STATS WITH RACE CONDITION PROTECTION ==========
+        async function updateStats() {
+            try {
+                if (!window.go || !window.go.main || !window.go.main.App) {
+                    document.getElementById('gameStatus').textContent = '🔴 Connection Error';
+                    document.getElementById('gameStatus').className = 'status inactive';
+                    return;
+                }
+
+                console.log('📡 Getting stats from backend...');
+                const stats = await window.go.main.App.GetStats();
+                
+                // Detailed debug info only if something changed
+                const itemsHash = JSON.stringify(stats.itemsData?.items || []);
+                const lastItemsHashStored = JSON.stringify(currentItemsData?.items || []);
+                
+                if (itemsHash !== lastItemsHashStored || editInProgress) {
+                    console.log('📊 Items data changed or edit in progress - updating UI');
+                    console.log('📊 Total Items:', stats.totalItems);
+                    console.log('📊 Items in current page:', stats.itemsData?.items?.length || 0);
+                    
+                    if (stats.itemsData?.items && stats.itemsData.items.length > 0) {
+                        console.log('📋 First few items on current page:');
+                        for (let i = 0; i < Math.min(3, stats.itemsData.items.length); i++) {
+                            const item = stats.itemsData.items[i];
+                            console.log(`   [ArrayIndex:${item.array_index}] Name: "${item.name}" | Quality: ${item.quality}`);
+                        }
+                    }
+                }
+                
+                updateUI(stats);
+                lastStats = stats;
+                
+            } catch (error) {
+                console.error('❌ Error updating stats:', error);
+                document.getElementById('gameStatus').textContent = '🔴 Error: ' + error.message;
+                document.getElementById('gameStatus').className = 'status inactive';
+            }
+        }
+
+        // ========== VERBESSERTE UPDATE UI FUNCTION MIT NEUER PAGINATION ==========
+        function updateUI(stats) {
+            console.log('🔄 updateUI called with stats:', stats);
+            
+            // Game status and kill rate tracking
+            const statusElement = document.getElementById('gameStatus');
+            const wasInGame = !globalKillRateData.isPaused;
+            
+            if (stats.runActive) {
+                statusElement.textContent = '🟢 In Game';
+                statusElement.className = 'status active';
+                
+                // Start tracking if not already tracking
+                if (globalKillRateData.isPaused) {
+                    startKillRateTracking();
+                }
+            } else {
+                statusElement.textContent = '🔴 In Menu';
+                statusElement.className = 'status inactive';
+                
+                // Pause tracking if currently tracking
+                if (!globalKillRateData.isPaused) {
+                    pauseKillRateTracking();
+                }
+            }
+
+            // Kill counts
+            document.getElementById('normalKills').textContent = stats.normal || 0;
+            document.getElementById('championKills').textContent = stats.champion || 0;
+            document.getElementById('uniqueKills').textContent = stats.unique || 0;
+            document.getElementById('superUniqueKills').textContent = stats.superUnique || 0;
+            document.getElementById('minionKills').textContent = stats.minion || 0;
+            document.getElementById('totalKills').textContent = stats.total || 0;
+
+            // Run stats
+            document.getElementById('currentRun').textContent = stats.currentRun || '00:00:00';
+            document.getElementById('fastestRun').textContent = stats.fastestRun || '-';
+            document.getElementById('slowestRun').textContent = stats.slowestRun || '-';
+            document.getElementById('averageRun').textContent = stats.averageRun || '-';
+            document.getElementById('totalRuns').textContent = stats.totalRuns || 0;
+
+            // ========== VERBESSERTE XP TRACKING UI UPDATE ==========
+            console.log('📈 Updating XP Tracking UI...');
+            if (stats.xpTracking) {
+                const xt = stats.xpTracking;
+                console.log('📈 XP data:', xt);
+                
+                document.getElementById('playerLevel').textContent = xt.current_level || 1;
+                document.getElementById('currentXP').textContent = formatNumber(xt.current_xp || 0);
+                document.getElementById('xpToNext').textContent = formatNumber(xt.xp_to_next_level || 0);
+                document.getElementById('xpThisRun').textContent = formatNumber(xt.xp_this_run || 0);
+                document.getElementById('xpPerHour').textContent = formatNumber(Math.round(xt.xp_per_hour || 0)) + '/h';
+                
+                // ========== VERBESSERTE RUNS-TO-NEXT-LEVEL ANZEIGE ==========
+                const runsToNextRow = document.getElementById('runsToNextRow');
+                const estimatedRunsRow = document.getElementById('estimatedRunsRow');
+                const runsToNextElement = document.getElementById('runsToNext');
+                const runsMethodElement = document.getElementById('runsMethod');
+                const estimatedRunsElement = document.getElementById('estimatedRuns');
+                
+                console.log('📈 Runs data:', {
+                    runs_to_next: xt.runs_to_next_level,
+                    estimated_runs: xt.estimated_runs_to_next,
+                    method: xt.runs_calculation_method,
+                    level: xt.current_level
+                });
+
+                // Entscheidung welche Anzeige zu verwenden
+                if (xt.current_level >= 99) {
+                    // Max Level erreicht
+                    runsToNextRow.style.display = 'none';
+                    estimatedRunsRow.style.display = 'none';
+                } else if (xt.runs_to_next_level && xt.runs_to_next_level > 0) {
+                    // Zuverlässige Berechnung verfügbar
+                    runsToNextElement.textContent = xt.runs_to_next_level;
+                    runsMethodElement.textContent = xt.runs_calculation_method || 'Based on run history';
+                    runsToNextRow.style.display = 'block';
+                    estimatedRunsRow.style.display = 'none';
+                    
+                    console.log('✅ Showing accurate runs-to-next:', xt.runs_to_next_level);
+                } else if (xt.estimated_runs_to_next && xt.estimated_runs_to_next > 0) {
+                    // Nur Schätzung verfügbar
+                    estimatedRunsElement.textContent = xt.estimated_runs_to_next;
+                    runsToNextRow.style.display = 'none';
+                    estimatedRunsRow.style.display = 'flex';
+                    
+                    console.log('⚠️ Showing estimated runs-to-next:', xt.estimated_runs_to_next);
+                } else {
+                    // Keine Daten verfügbar
+                    runsToNextRow.style.display = 'none';
+                    estimatedRunsRow.style.display = 'none';
+                    
+                    console.log('❌ No runs-to-next data available');
+                }
+            } else {
+                console.log('⚠️ No xpTracking data found');
+                // Hide runs displays if no XP data
+                document.getElementById('runsToNextRow').style.display = 'none';
+                document.getElementById('estimatedRunsRow').style.display = 'none';
+            }
+
+            // ========== CHARACTER INFO UI UPDATE ==========
+            console.log('🎮 Updating Character Info UI...');
+            document.getElementById('playerClass').textContent = stats.playerClass || 'Unknown';
+            document.getElementById('currentArea').textContent = stats.currentArea || 'Unknown';
+            document.getElementById('currentProfileDisplay').textContent = stats.currentProfile || 'default';
+            
+            // Session time calculation
+            if (stats.sessionStartTime) {
+                const sessionStart = new Date(stats.sessionStartTime);
+                const now = new Date();
+                const sessionDuration = Math.floor((now - sessionStart) / 1000);
+                document.getElementById('sessionTime').textContent = formatSessionTime(sessionDuration);
+            }
+
+            // Calculate and display global kill rates
+            updateGlobalKillRates(stats);
+
+            // ========== NEUE ITEMS PAGINATION UPDATE ==========
+            document.getElementById('totalItems').textContent = stats.totalItems || 0;
+            
+            // Update items using new pagination system
+            if (stats.itemsData && !editInProgress) {
+                updateItemsListWithPagination(stats.itemsData);
+            }
+
+            // Filter status
+            updateFilterStatus(stats.filtersEnabled);
+
+            // Update profile dropdown
+            updateProfileDropdown(stats.profiles || [], stats.currentProfile || 'default');
+
+            // Show/hide default profile warning
+            updateDefaultProfileWarning(stats.currentProfile || 'default');
+            
+            console.log('✅ updateUI completed');
+        }
+
+        // ========== NEUE PAGINATION FUNCTIONS ==========
+
+        async function updateItemsListWithPagination(itemsData) {
+            console.log('📋 updateItemsListWithPagination called:', itemsData);
+            
+            // Store current items data
+            currentItemsData = itemsData;
+            
+            // Update pagination info
+            currentPage = itemsData.current_page || 0;
+            totalPages = itemsData.total_pages || 0;
+            showAllItems = itemsData.show_all || false;
+            
+            // Update pagination controls
+            updatePaginationControls(itemsData);
+            
+            // Update items list
+            updateItemsList(itemsData.items || []);
+        }
+
+        function updatePaginationControls(itemsData) {
+            const paginationControls = document.getElementById('paginationControls');
+            const showAllToggle = document.getElementById('showAllToggle');
+            const paginationInfo = document.getElementById('paginationInfo');
+            const pageInput = document.getElementById('pageInput');
+            
+            // Show pagination controls if we have items
+            if (itemsData.total_items > 0) {
+                paginationControls.style.display = 'flex';
+            } else {
+                paginationControls.style.display = 'none';
+                return;
+            }
+            
+            // Update show all toggle
+            if (showAllItems) {
+                showAllToggle.textContent = '📃 Show Pages';
+                showAllToggle.classList.add('active');
+            } else {
+                showAllToggle.textContent = '📄 Show All Items';
+                showAllToggle.classList.remove('active');
+            }
+            
+            // Update pagination info
+            if (showAllItems) {
+                paginationInfo.textContent = `Showing all ${itemsData.total_items} items`;
+            } else {
+                const startItem = currentPage * itemsData.items_per_page + 1;
+                const endItem = Math.min((currentPage + 1) * itemsData.items_per_page, itemsData.total_items);
+                paginationInfo.textContent = `Page ${currentPage + 1} of ${totalPages} (${startItem}-${endItem} of ${itemsData.total_items})`;
+            }
+            
+            // Update page input
+            pageInput.value = currentPage + 1;
+            pageInput.max = totalPages;
+            
+            // Update button states
+            const firstPageBtn = document.getElementById('firstPageBtn');
+            const prevPageBtn = document.getElementById('prevPageBtn');
+            const nextPageBtn = document.getElementById('nextPageBtn');
+            const lastPageBtn = document.getElementById('lastPageBtn');
+            
+            if (showAllItems || totalPages <= 1) {
+                // Disable all pagination buttons in "show all" mode
+                firstPageBtn.disabled = true;
+                prevPageBtn.disabled = true;
+                nextPageBtn.disabled = true;
+                lastPageBtn.disabled = true;
+                pageInput.disabled = true;
+            } else {
+                firstPageBtn.disabled = currentPage === 0;
+                prevPageBtn.disabled = currentPage === 0;
+                nextPageBtn.disabled = currentPage >= totalPages - 1;
+                lastPageBtn.disabled = currentPage >= totalPages - 1;
+                pageInput.disabled = false;
+            }
+        }
+
+        async function toggleShowAll() {
+            try {
+                if (!window.go?.main?.App?.SetShowAllItems) {
+                    console.error('SetShowAllItems function not available');
+                    return;
+                }
+                
+                const newShowAll = await window.go.main.App.SetShowAllItems(!showAllItems);
+                showAllItems = newShowAll;
+                
+                console.log('📄 Show all items toggled:', showAllItems);
+                
+                // Reset to first page when switching modes
+                currentPage = 0;
+                
+                // Reload items
+                await loadItemsPage(currentPage);
+                
+            } catch (error) {
+                console.error('Error toggling show all:', error);
+                alert('Error changing display mode: ' + error);
+            }
+        }
+
+        async function changeItemsPerPage() {
+            try {
+                const select = document.getElementById('itemsPerPageSelect');
+                const newItemsPerPage = parseInt(select.value);
+                
+                if (!window.go?.main?.App?.SetItemsPerPage) {
+                    console.error('SetItemsPerPage function not available');
+                    return;
+                }
+                
+                const actualItemsPerPage = await window.go.main.App.SetItemsPerPage(newItemsPerPage);
+                itemsPerPage = actualItemsPerPage;
+                
+                console.log('📄 Items per page changed:', itemsPerPage);
+                
+                // Reset to first page when changing page size
+                currentPage = 0;
+                
+                // Reload items
+                await loadItemsPage(currentPage);
+                
+            } catch (error) {
+                console.error('Error changing items per page:', error);
+                alert('Error changing page size: ' + error);
+            }
+        }
+
+        async function loadItemsPage(page) {
+            try {
+                if (!window.go?.main?.App?.GetItemsPage) {
+                    // Fallback to GetStats if GetItemsPage not available
+                    await updateStats();
+                    return;
+                }
+                
+                console.log('📋 Loading items page:', page);
+                const itemsData = await window.go.main.App.GetItemsPage(page, itemsPerPage);
+                
+                // Update UI with new data
+                updateItemsListWithPagination(itemsData);
+                
+            } catch (error) {
+                console.error('Error loading items page:', error);
+                // Fallback to full update
+                await updateStats();
+            }
+        }
+
+        async function goToFirstPage() {
+            if (currentPage !== 0) {
+                await loadItemsPage(0);
+            }
+        }
+
+        async function goToPrevPage() {
+            if (currentPage > 0) {
+                await loadItemsPage(currentPage - 1);
+            }
+        }
+
+        async function goToNextPage() {
+            if (currentPage < totalPages - 1) {
+                await loadItemsPage(currentPage + 1);
+            }
+        }
+
+        async function goToLastPage() {
+            if (currentPage !== totalPages - 1) {
+                await loadItemsPage(totalPages - 1);
+            }
+        }
+
+        async function goToPage(page) {
+            if (page >= 0 && page < totalPages && page !== currentPage) {
+                await loadItemsPage(page);
+            }
+        }
+
+        function startKillRateTracking() {
+            const now = Date.now();
+            globalKillRateData.sessionStartTime = now;
+            globalKillRateData.lastUpdateTime = now;
+            globalKillRateData.isPaused = false;
+            console.log('🟢 Kill rate tracking started');
+        }
+
+        function pauseKillRateTracking() {
+            if (!globalKillRateData.isPaused && globalKillRateData.sessionStartTime) {
+                const now = Date.now();
+                const sessionDuration = (now - globalKillRateData.sessionStartTime) / 1000; // Convert to seconds
+                globalKillRateData.totalActiveTime += sessionDuration;
+                globalKillRateData.isPaused = true;
+                globalKillRateData.sessionStartTime = null;
+                console.log('🔴 Kill rate tracking paused. Session duration:', Math.round(sessionDuration), 'seconds. Total active time:', Math.round(globalKillRateData.totalActiveTime), 'seconds');
+            }
+        }
+
+        function getCurrentActiveTime() {
+            let totalTime = globalKillRateData.totalActiveTime;
+            
+            // Add current session time if tracking is active
+            if (!globalKillRateData.isPaused && globalKillRateData.sessionStartTime) {
+                const currentSessionTime = (Date.now() - globalKillRateData.sessionStartTime) / 1000;
+                totalTime += currentSessionTime;
+            }
+            
+            return totalTime;
+        }
+
+        function updateGlobalKillRates(stats) {
+            const killRateRow = document.getElementById('killRateRow');
+            const killRateHourRow = document.getElementById('killRateHourRow');
+            const killsPerMinuteElement = document.getElementById('killsPerMinute');
+            const killsPerHourElement = document.getElementById('killsPerHour');
+            
+            const totalActiveTime = getCurrentActiveTime();
+            const totalKills = stats.total || 0;
+            
+            // Show kill rates if we have kills and active time
+            if (totalKills > 0 && totalActiveTime > 30) { // At least 30 seconds of active time
+                // Calculate kills per minute
+                const killsPerMinute = (totalKills / totalActiveTime) * 60;
+                const killsPerHour = killsPerMinute * 60;
+                
+                // Display with appropriate formatting
+                killsPerMinuteElement.textContent = killsPerMinute.toFixed(1);
+                killsPerHourElement.textContent = Math.round(killsPerHour).toLocaleString();
+                
+                killRateRow.style.display = 'flex';
+                killRateHourRow.style.display = 'flex';
+                
+                // Debug info
+                console.log(`📊 Kill Rate: ${totalKills} kills in ${Math.round(totalActiveTime)}s = ${killsPerMinute.toFixed(1)}/min`);
+            } else {
+                killRateRow.style.display = 'none';
+                killRateHourRow.style.display = 'none';
+            }
+        }
+
+        function resetKillRateTracking() {
+            // Reset the global tracking when kills are reset
+            pauseKillRateTracking(); // Stop current tracking
+            globalKillRateData.totalActiveTime = 0;
+            globalKillRateData.sessionStartTime = null;
+            globalKillRateData.isPaused = true;
+            console.log('🔄 Kill rate tracking reset');
+        }
+
+        function updateFilterStatus(filtersEnabled) {
+            const filterToggle = document.getElementById('filterToggle');
+            const filterStatus = document.getElementById('filterStatus');
+            
+            if (filtersEnabled) {
+                filterToggle.textContent = '🔍 Filters: ON';
+                filterToggle.className = 'button';
+                filterStatus.textContent = 'Filters: ENABLED';
+                filterStatus.className = 'filter-status enabled';
+            } else {
+                filterToggle.textContent = '🔍 Filters: OFF';
+                filterToggle.className = 'button filter-off';
+                filterStatus.textContent = 'Filters: DISABLED';
+                filterStatus.className = 'filter-status disabled';
+            }
+        }
+
+        function updateDefaultProfileWarning(currentProfile) {
+            const warningBanner = document.getElementById('defaultProfileWarning');
+            
+            if (currentProfile === 'default') {
+                warningBanner.classList.add('show');
+            } else {
+                warningBanner.classList.remove('show');
+            }
+        }
+
+        // ========== IMPROVED ITEMS LIST WITH CORRECT ARRAY INDICES ==========
+        function updateItemsList(items) {
+            const itemsList = document.getElementById('itemsList');
+            
+            if (!items || items.length === 0) {
+                itemsList.innerHTML = '<div class="loading">No items found yet...</div>';
+                return;
+            }
+
+            let html = '';
+            console.log('🔄 updateItemsList called with', items.length, 'items');
+            
+            // Items are already in the correct order from backend (newest first)
+            for (let displayIndex = 0; displayIndex < items.length; displayIndex++) {
+                const item = items[displayIndex];
+                
+                // Use the array_index from the backend (this is the real index in the backend array)
+                const arrayIndex = item.array_index;
+                
+                const qualityClass = `quality-${item.quality.toLowerCase()}`;
+                const timeAgo = getTimeAgo(new Date(item.time));
+                const runIndex = item.runIndex || item.run_index || 1;
+                
+                // Safer item name escaping
+                const safeItemName = escapeHtml(item.name);
+                
+                // Intelligent handling for long names
+                const isLongName = item.name.length > 60; // Threshold for "long names"
+                const nameClass = isLongName ? 'item-name item-name-long' : 'item-name';
+                const nameAttributes = isLongName ? `data-full-name="${safeItemName}"` : '';
+                
+                console.log(`📋 Item ${displayIndex}: ArrayIndex=${arrayIndex}, Name="${item.name}", SafeName="${safeItemName}", IsLong=${isLongName}`);
+                
+                // Better button state handling
+                const buttonDisabled = editInProgress ? 'disabled' : '';
+                const buttonTitle = editInProgress ? 'Edit in progress...' : 'Edit item name';
+                
+                // ========== ENHANCED ITEM DISPLAY ==========
+                const affixesDisplay = item.affixes ? `<div class="item-affixes">${escapeHtml(item.affixes)}</div>` : '';
+                const etherealMark = item.is_ethereal ? ' 👻' : '';
+                const identifiedMark = item.is_identified === false ? ' [Unidentified]' : '';
+                const itemLevelDisplay = item.item_level > 0 ? ` (iLvl ${item.item_level})` : '';
+                
+                html += `
+                    <div class="item-entry ${qualityClass}" data-array-index="${arrayIndex}" data-item-name="${safeItemName}">
+                        <div class="item-info">
+                            <div class="${nameClass}" ${nameAttributes} title="${isLongName ? safeItemName : ''}">${safeItemName}${etherealMark}${identifiedMark}</div>
+                            <div class="item-details">Run ${runIndex} • ${item.quality}${itemLevelDisplay}</div>
+                            ${affixesDisplay}
+                        </div>
+                        <div class="item-actions">
+                            <button class="edit-btn" ${buttonDisabled} onclick="openEditModalSafe(${arrayIndex}, this)" title="${buttonTitle}">
+                                ✏️ Edit
+                            </button>
+                            <div class="item-time">${timeAgo}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            itemsList.innerHTML = html;
+            console.log('✅ Items list updated successfully');
+        }
+
+        function updateProfileDropdown(profiles, currentProfile) {
+            const select = document.getElementById('profileSelect');
+            const currentValue = select.value;
+            
+            // Only update if profiles changed
+            if (profiles && (select.options.length !== profiles.length || currentValue !== currentProfile)) {
+                select.innerHTML = '';
+                profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile;
+                    option.textContent = profile;
+                    select.appendChild(option);
+                });
+                select.value = currentProfile;
+            }
+        }
+
+        async function loadProfiles() {
+            try {
+                if (window.go && window.go.main && window.go.main.App) {
+                    const stats = await window.go.main.App.GetStats();
+                    updateProfileDropdown(stats.profiles || [], stats.currentProfile || 'default');
+                }
+            } catch (error) {
+                console.error('Error loading profiles:', error);
+            }
+        }
+
+        // Profile management
+        document.getElementById('profileSelect').addEventListener('change', async function() {
+            try {
+                if (window.go && window.go.main && window.go.main.App) {
+                    // Reset kill rate tracking when switching profiles
+                    resetKillRateTracking();
+                    
+                    await window.go.main.App.SwitchProfile(this.value);
+                    
+                    // Reset pagination when switching profiles
+                    currentPage = 0;
+                    showAllItems = false;
+                    
+                    updateStats(); // Immediate update
+                }
+            } catch (error) {
+                alert('Error switching profile: ' + error);
+                loadProfiles(); // Reload to reset dropdown
+            }
+        });
+
+        async function createProfile() {
+            const nameInput = document.getElementById('newProfileName');
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                alert('Please enter a profile name');
+                return;
+            }
+            
+            try {
+                if (window.go && window.go.main && window.go.main.App) {
+                    await window.go.main.App.CreateProfile(name);
+                    nameInput.value = '';
+                    loadProfiles();
+                    updateStats();
+                }
+            } catch (error) {
+                alert('Error creating profile: ' + error);
+            }
+        }
+
+        async function deleteProfile() {
+            const select = document.getElementById('profileSelect');
+            const currentProfile = select.value;
+            
+            if (currentProfile === 'default') {
+                alert('Cannot delete the default profile');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete profile "${currentProfile}"?`)) {
+                return;
+            }
+            
+            try {
+                if (window.go && window.go.main && window.go.main.App) {
+                    await window.go.main.App.DeleteProfile(currentProfile);
+                    loadProfiles();
+                    updateStats();
+                }
+            } catch (error) {
+                alert('Error deleting profile: ' + error);
+            }
+        }
+
+        async function resetKills() {
+            if (!confirm('Are you sure you want to reset all kills and run statistics? This will also reset the kill rate tracking. Items will be preserved.')) {
+                return;
+            }
+            
+            try {
+                if (window.go && window.go.main && window.go.main.App) {
+                    await window.go.main.App.ResetKills();
+                    resetKillRateTracking(); // Reset the kill rate tracking too
+                    updateStats(); // Immediate update
+                }
+            } catch (error) {
+                alert('Error resetting kills and runs: ' + error);
+            }
+        }
+
+        async function toggleFilters() {
+            try {
+                if (window.go && window.go.main && window.go.main.App) {
+                    const newState = await window.go.main.App.ToggleFilters();
+                    updateStats(); // Immediate update
+                }
+            } catch (error) {
+                alert('Error toggling filters: ' + error);
+            }
+        }
+
+        // Utility functions
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diff = now - date;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+            
+            if (days > 0) {
+                return `${days}d ago`;
+            } else if (hours > 0) {
+                return `${hours}h ago`;
+            } else if (minutes > 0) {
+                return `${minutes}m ago`;
+            } else {
+                return 'just now';
+            }
+        }
+
+        // ========== XP TRACKING & CHARACTER INFO HELPER FUNCTIONS ==========
+
+        function formatNumber(num) {
+            if (num >= 1000000000) {
+                return (num / 1000000000).toFixed(1) + 'B';
+            } else if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+
+        function formatSessionTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            if (hours > 0) {
+                return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            } else {
+                return `${minutes}:${secs.toString().padStart(2, '0')}`;
+            }
+        }
+
+        // Handle Enter key for profile creation
+        document.getElementById('newProfileName').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                createProfile();
+            }
+        });
+
+        // ========== IMPROVED ITEM EDITING FUNCTIONALITY WITH RACE CONDITION PROTECTION ==========
+        let currentEditingIndex = -1;
+        let currentOriginalName = '';
+        let isSmartMode = false;
+        let selectedItemName = '';
+
+        // Complete lists of Unique and Set items
+        const uniqueItems = [
+            "Goldstrike Arch", "Ghostflame", "Nagelring", "Harlequin Crest", "Skewer of Krintiz", "Umbral Disk", "Lance Guard", 
+            "Homunculus", "Ormus' Robes", "Demon Machine", "Hellcast", "The Oculus", "Gore Rider", "Blackleach Blade", 
+            "Blade Of Ali Baba", "Griffon's Eye", "Witchwild String", "Kuko Shakaku", "Skystrike", "The Impaler", "Tarnhelm", 
+            "Kelpie Snare", "Carin Shard", "Langer Briser", "Pelta Lunata", "Todesfaelle Flamme", "The Jade Tan Do", "Hexfire", 
+            "Hellfire Torch", "The Stone of Jordan", "Hone Sundan", "Husoldal Evo", "Seraph's Hymn", "The Centurion", 
+            "Tyrael's Might", "Darkforce Spawn", "Herald Of Zakarum", "Pierre Tombale Couant", "Duriel's Shell", 
+            "Buriza-Do Kyanon", "Venom Ward", "Viperfork", "Darksight Helm", "Rainbow Facet: Poison Death", "Bloodtree Stump", 
+            "Bone Break", "Skull Collector", "Blood Crescent", "Jalal's Mane", "Boneshade", "Windforce", "Demonhorn's Edge", 
+            "Skullder's Ire", "The Cranium Basher", "Snowclash", "Headstriker", "Arachnid Mesh", "Spike Thorn", "Lycander's Aim", 
+            "Bloodletter", "Titan's Revenge", "Lidless Wall", "Bul-Kathos' Wedding Band", "Black Cleft", "Atma's Scarab", 
+            "Ghoulhide", "The Reaper's Toll", "Woestave", "Demon Limb", "Doombringer", "The Grandfather", "Biggin's Bonnet", 
+            "Stormrider", "Death's Fathom", "Wisp Projector", "Bing Sz Wang", "Wizardspike", "Azurewrath", "Stormspire", 
+            "Ribcracker", "Raven Claw", "Flamebellow", "Ravenlore", "Death's Web", "The Gavel Of Pain", "Boneslayer Blade", 
+            "The Minotaur", "Rockstopper", "Rattlecage", "The Cat's Eye", "The Rising Sun", "The Redeemer", "Heaven's Light", 
+            "Metalgrid", "Mara's Kaleidoscope", "Highlord's Wrath", "Crescent Moon", "Saracen's Chance", "The Mahim-Oak Curio", 
+            "The Eye of Etlich", "Nokozan Relic", "Nature's Peace", "Carrion Wind", "Raven Frost", "Dwarf Star", "Manald Heal", 
+            "Veil of Steel", "Nightwing's Veil", "Templar's Might", "Earth Shifter", "Stormlash", "Horizon's Tornado", 
+            "Lightsabre", "Schaefer's Hammer", "Stone Crusher", "Coldkill", "Giant Skull", "Maelstrom", "Steel Pillar", 
+            "Swordguard", "Gheed's Fortune", "Suicide Branch", "Soulfeast Tine", "Blackhand Key", "Arm of King Leoric", 
+            "Gargoyle's Bite", "Boneflesh", "Verdungo's Hearty Cord", "The Meat Scraper", "Messerschmidt's Reaver", 
+            "Crown of Ages", "Spectral Shard", "The Scalper", "Wraith Flight", "Que-Hegan's Wisdom", "Gimmershred", 
+            "Skin of the Vipermagi", "Lacerator", "Bonesnap", "Skull Splitter", "The Gnasher", "Spirit Ward", "Gleamscythe", 
+            "Shadowfang", "Wizendraw", "String of Ears", "Spirit Forge", "Frostwind", "Rune Master", "Magewrath", "Leadcrow", 
+            "The Battlebranch", "Executioner's Justice", "The Grim Reaper", "Serpent Lord", "Spineripper", "The Diggler", 
+            "Gut Siphon", "Endlesshail", "Stormspike", "Riphook", "Sureshrill Frost", "The Atlantean", "Rainbow Facet: Cold Level-up", 
+            "Heart Carver", "Peasant Crown", "Fleshripper", "Grim's Burning Dead", "Pus Spitter", "Rixot's Keen", "Shaftstop", 
+            "The Tannr Gorerod", "Baranar's Star", "Warshrike", "Deathbit", "Razor's Edge", "Bloodrise", "Stoneraven", 
+            "Lycander's Flank", "Ume's Lament", "Windhammer", "Rakescar", "Spirit Keeper", "Gravenspine", "Treads of Cthon", 
+            "Cliffkiller", "Wolfhowl", "Bloodthief", "Razortine", "Moonfall", "Demon's Arch", "Hellrack", "Stormshield", 
+            "Gull", "Leviathan", "Andariel's Visage", "Baezil's Vortex", "Wormskull", "Hellslayer", "The Fetid Sprinkler", 
+            "Rainbow Facet: Fire Level-up", "Rainbow Facet: Fire Death", "Rainbow Facet: Cold Death", "Sandstorm Trek", 
+            "Twitchthroe", "The Face of Horror", "Eaglehorn", "Stormstrike", "Steeldriver", "Mang Song's Lesson", "Djinn Slayer", 
+            "The Iron Jang Bong", "Stealskull", "Goblin Toe", "Swordback Hold", "Lava Gout", "Shadow Dancer", "Dracul's Grasp", 
+            "Tiamat's Rebuke", "Guardian Angel", "The Vile Husk", "Halaberd's Reign", "Arreat's Face", "Crainte Vomir", 
+            "Gerke's Sanctuary", "Guardian Naga", "Greyform", "Skin of the Flayed One", "The Dragon Chang", "Ethereal Edge", 
+            "Chance Guards", "Hand of Blessed Light", "Thunderstroke", "Darkglow", "Butcher's Pupil", "Goldskin", "Medusa's Gaze", 
+            "Goldwrap", "Arkaine's Valor", "Nord's Tenderizer", "Hellclap", "Cold Rupture", "Griswold's Edge", "Blackbog's Sharp", 
+            "Corpsemourn", "Venom Grip", "Shadow Killer", "Black Hades", "Dragonscale", "Arioc's Needle", "Silks of the Victor", 
+            "Plague Bearer", "Annihilus", "Kinemil's Awl", "Blinkbat's Form", "Undead Crown", "Stormchaser", "Tearhaunch", 
+            "Crack of the Heavens", "Rotting Fissure", "Astreon's Iron Ward", "Steel Carapace", "Blackoak Shield", "Radament's Sphere", 
+            "Bonehew", "Waterwalk", "Fleshrender", "Infernostride", "The Gladiator's Bane", "Head Hunter's Glory", "Flame Rift", 
+            "Valkyrie Wing", "Torch of Iro", "Stormeye", "Cranebeak", "Zakarum's Hand", "Ichorsting", "Stormguild", "Blackhorn's Face", 
+            "Steel Shade", "Culwen's Point", "Stoutnail", "Crushflange", "Axe of Fechmar", "The Spirit Shroud", "Vampire Gaze", 
+            "Sparking Mail", "Iceblink", "Knell Striker", "Ginther's Rift", "The Ward", "Dark Clan Crusher", "Moser's Blessed Circle", 
+            "Hawkmail", "Crow Caw", "Howltusk", "Rockfleece", "Heavenly Garb", "Iron Pelt", "Toothrow", "Pompeii's Wrath", 
+            "Duskdeep", "Coif of Glory", "Earthshaker", "Ironstone", "Wall of the Eyeless", "Atma's Wail", "Visceratuant", 
+            "Steelclash", "Kira's Guardian", "Alma Negra", "Bverrit Keep", "Crown of Thieves", "Chromatic Ire", "Eschuta's Temper", 
+            "Bloodmoon", "Coldsteel Eye", "Widowmaker", "The Salamander", "Islestrike", "Magefist", "Gloom's Trap", "Tomb Reaver", 
+            "Bartuc's Cut-Throat", "Doomslinger", "Lance of Yaggai", "Ripsaw", "Blacktongue", "Rusthandle", "War Traveler", 
+            "Hellplague", "Jade Talon", "Razortail", "Razorswitch", "Silkweave", "The Chieftain", "Bloodfist", 
+            "The General's Tan Do Li Ga", "Cloudcrack", "Soul Harvest", "Thundergod's Vigor", "Bladebone", "Warlord's Trust", 
+            "Goreshovel", "Ondal's Wisdom", "Spire of Honor", "Deathspade", "Soulflay", "Athena's Wrath", "Humongous", 
+            "Spire of Lazarus", "Brainhew", "Dimoak's Hew", "Marrowwalk", "Blood Raven's Charge", "Rogue's Bow", 
+            "Rainbow Facet: Lightning Death", "Rainbow Facet: Lightning Level-up", "Rainbow Facet: Poison Level-up", 
+            "Witherstring", "Warpspear", "The Patriarch", "The Hand of Broc", "Steelrend", "Steelgoad", "Spellsteel", 
+            "Soul Drainer", "Snakecord", "Pluckeye", "Nosferatu's Coil", "Nightsmoke", "Lenymo", "Hotspur", "Hellmouth", 
+            "Gravepalm", "Gorefoot", "Frostburn", "Firelizard's Talons", "Felloak", "Death Cleaver", "Cerebus' Bite", 
+            "Boneflame", "Blastbark", "Bladebuckle", "Bane Ash"
+        ];
+
+        const setItems = [
+            "Angelic Sickle", "Angelic Mantle", "Angelic Halo", "Angelic Wings", "Arcanna's Sign", "Arcanna's Deathwand", 
+            "Arcanna's Head", "Arcanna's Flesh", "Arctic Furs", "Arctic Binding", "Arctic Mitts", "Arctic Horn", 
+            "Berserker's Headgear", "Berserker's Hauberk", "Berserker's Hatchet", "Cathan's Rule", "Cathan's Mesh", 
+            "Cathan's Visage", "Cathan's Sigil", "Cathan's Seal", "Civerb's Ward", "Civerb's Icon", "Civerb's Cudgel", 
+            "Cleglaw's Tooth", "Cleglaw's Claw", "Cleglaw's Pincers", "Death's Hand", "Death's Touch", "Death's Guard", 
+            "Hsarus' Iron Heel", "Hsarus' Iron Fist", "Hsarus' Iron Stay", "Infernal Cranium", "Infernal Torch", 
+            "Infernal Sign", "Iratha's Collar", "Iratha's Cuff", "Iratha's Coil", "Iratha's Cord", "Isenhart's Lightbrand", 
+            "Isenhart's Parry", "Isenhart's Case", "Isenhart's Horns", "Milabrega's Orb", "Milabrega's Rod", "Milabrega's Diadem", 
+            "Milabrega's Robe", "Sigon's Visor", "Sigon's Shelter", "Sigon's Gage", "Sigon's Sabot", "Sigon's Wrap", 
+            "Sigon's Guard", "Tancred's Spine", "Tancred's Crowbill", "Tancred's Hobnails", "Tancred's Weird", "Tancred's Skull", 
+            "Vidala's Barb", "Vidala's Fetlock", "Vidala's Ambush", "Vidala's Snare", "Bul-Kathos' Sacred Charge", 
+            "Bul-Kathos' Tribal Guardian", "Cow King's Horns", "Cow King's Hide", "Cow King's Hoofs", "Dangoon's Teaching", 
+            "Taebaek's Glory", "Haemosu's Adamant", "Ondal's Almighty", "Hwanin's Splendor", "Hwanin's Refuge", "Hwanin's Blessing", 
+            "Hwanin's Justice", "Naj's Puzzler", "Naj's Light Plate", "Naj's Circlet", "Guillaume's Face", "Wilhelm's Pride", 
+            "Magnus' Skin", "Whitstan's Guard", "Sander's Paragon", "Sander's Riprap", "Sander's Taboo", "Sander's Superstition", 
+            "Sazabi's Cobalt Redeemer", "Sazabi's Ghost Liberator", "Sazabi's Mental Sheath", "Telling of Beads", "Laying of Hands", 
+            "Rite of Passage", "Dark Adherent", "Credendum", "Aldur's Stony Gaze", "Aldur's Deception", "Aldur's Rhythm", 
+            "Aldur's Advance", "Griswold's Valor", "Griswold's Heart", "Griswold's Redemption", "Griswold's Honor", 
+            "Immortal King's Will", "Immortal King's Soul Cage", "Immortal King's Detail", "Immortal King's Forge", 
+            "Immortal King's Pillar", "Immortal King's Stone Crusher", "M'avina's True Sight", "M'avina's Embrace", 
+            "M'avina's Icy Clutch", "M'avina's Tenet", "M'avina's Caster", "Natalya's Totem", "Natalya's Mark", "Natalya's Shadow", 
+            "Natalya's Soul", "Tal Rasha's Fine Spun Cloth", "Tal Rasha's Adjudication", "Tal Rasha's Lidless Eye", 
+            "Tal Rasha's Guardianship", "Tal Rasha's Horadric Crest", "Trang-Oul's Guise", "Trang-Oul's Scales", 
+            "Trang-Oul's Wing", "Trang-Oul's Claws", "Trang-Oul's Girth"
+        ];
+
+        const allSpecialItems = [...uniqueItems, ...setItems].sort();
+
+        // ========== ENHANCED RACE-CONDITION-SAFE EDIT MODAL FUNCTIONS ==========
+
+        function openEditModalSafe(arrayIndex, buttonElement) {
+            // CRITICAL: Prevent multiple simultaneous edits
+            if (editInProgress) {
+                console.log('⚠️ WARNING: Edit already in progress, ignoring modal open');
+                alert('Please wait, an edit is already in progress...');
+                return;
+            }
+
+            console.log('🚀 DEBUG - openEditModalSafe called:');
+            console.log('   - Passed arrayIndex:', arrayIndex);
+            console.log('   - Button element:', buttonElement);
+            
+            // Get the item name from the parent element's data attributes
+            const itemEntry = buttonElement.closest('.item-entry');
+            console.log('   - Item entry element:', itemEntry);
+            
+            if (!itemEntry) {
+                console.error('❌ ERROR: Could not find item entry element!');
+                alert('Error: Could not find item entry. Please refresh the page.');
+                return;
+            }
+            
+            const currentName = itemEntry.getAttribute('data-item-name');
+            const confirmedIndex = parseInt(itemEntry.getAttribute('data-array-index'));
+            
+            console.log('   - Confirmed arrayIndex from DOM:', confirmedIndex);
+            console.log('   - Item name from DOM:', currentName);
+            
+            if (!currentName) {
+                console.error('❌ ERROR: Could not get item name from DOM!');
+                alert('Error: Could not get item name. Please refresh the page.');
+                return;
+            }
+            
+            // Use the confirmed index from DOM data attribute
+            if (confirmedIndex !== arrayIndex) {
+                console.log('⚠️ WARNING: Index mismatch! Using DOM index:', confirmedIndex);
+            }
+            
+            // Complete reset of all modal states
+            currentEditingIndex = confirmedIndex;
+            currentOriginalName = currentName;
+            isSmartMode = false;
+            selectedItemName = '';
+            
+            console.log('🔄 Setting modal states:');
+            console.log('   - currentEditingIndex:', currentEditingIndex);
+            console.log('   - currentOriginalName:', currentOriginalName);
+            console.log('   - isSmartMode:', isSmartMode);
+            
+            // Reset all input fields
+            const newItemNameInput = document.getElementById('newItemName');
+            const searchItemNameInput = document.getElementById('searchItemName');
+            const namePreview = document.getElementById('namePreview');
+            
+            if (newItemNameInput) {
+                newItemNameInput.value = currentName;
+                adjustInputHeight(newItemNameInput); // Adjust height for potentially long names
+                console.log('✅ Set newItemName input to:', currentName);
+            } else {
+                console.error('❌ ERROR: newItemName input not found!');
+            }
+            
+            if (searchItemNameInput) {
+                searchItemNameInput.value = '';
+                adjustInputHeight(searchItemNameInput); // Reset height
+                console.log('✅ Cleared searchItemName input');
+            }
+            
+            if (namePreview) {
+                namePreview.textContent = currentName;
+                console.log('✅ Set namePreview to:', currentName);
+            }
+            
+            // Reset Radio Buttons
+            const replaceRadio = document.querySelector('input[name="editMode"][value="replace"]');
+            const extendRadio = document.querySelector('input[name="editMode"][value="extend"]');
+            if (replaceRadio) {
+                replaceRadio.checked = true;
+                console.log('✅ Set replace radio to checked');
+            }
+            if (extendRadio) {
+                extendRadio.checked = false;
+                console.log('✅ Set extend radio to unchecked');
+            }
+            
+            // Hide suggestions dropdown
+            const suggestionsDropdown = document.getElementById('itemSuggestions');
+            if (suggestionsDropdown) {
+                suggestionsDropdown.style.display = 'none';
+                console.log('✅ Hidden suggestions dropdown');
+            }
+            
+            // Force Simple Mode
+            showSimpleMode();
+            
+            // Show warning if in default profile
+            const currentProfile = lastStats?.currentProfile || 'default';
+            const modalWarning = document.getElementById('modalProfileWarning');
+            if (modalWarning) {
+                if (currentProfile === 'default') {
+                    modalWarning.style.display = 'block';
+                    console.log('⚠️ WARNING: Showing default profile warning');
+                } else {
+                    modalWarning.style.display = 'none';
+                    console.log('✅ Hidden default profile warning');
+                }
+            }
+            
+            // Show modal
+            const modal = document.getElementById('editItemModal');
+            if (modal) {
+                modal.style.display = 'block';
+                console.log('✅ Modal shown');
+            } else {
+                console.error('❌ ERROR: Modal element not found!');
+                alert('Error: Could not find modal. Please refresh the page.');
+                return;
+            }
+            
+            console.log('🔄 Modal state reset complete');
+            
+            setTimeout(() => {
+                if (newItemNameInput) {
+                    newItemNameInput.focus();
+                    newItemNameInput.select();
+                    console.log('✅ Focused and selected input field');
+                }
+            }, 100);
+        }
+
+        // LEGACY: Keep old function for compatibility, but redirect to safe version
+        function openEditModal(itemIndex, currentName) {
+            console.log('🔄 LEGACY openEditModal called - redirecting to safe version');
+            console.log('   - itemIndex:', itemIndex, 'currentName:', currentName);
+            
+            // Find the corresponding button element by data attributes
+            const itemEntries = document.querySelectorAll('.item-entry');
+            for (let entry of itemEntries) {
+                const entryIndex = parseInt(entry.getAttribute('data-array-index'));
+                const entryName = entry.getAttribute('data-item-name');
+                
+                if (entryIndex === itemIndex && entryName === currentName) {
+                    const button = entry.querySelector('.edit-btn');
+                    if (button) {
+                        openEditModalSafe(itemIndex, button);
+                        return;
+                    }
+                }
+            }
+            
+            console.log('⚠️ WARNING: Could not find matching item entry, using fallback');
+            // Fallback to direct call - but still check edit state
+            if (editInProgress) {
+                alert('Please wait, an edit is already in progress...');
+                return;
+            }
+            
+            currentEditingIndex = itemIndex;
+            currentOriginalName = currentName;
+            isSmartMode = false;
+            selectedItemName = '';
+            
+            document.getElementById('newItemName').value = currentName;
+            document.getElementById('searchItemName').value = '';
+            document.getElementById('namePreview').textContent = currentName;
+            
+            showSimpleMode();
+            document.getElementById('editItemModal').style.display = 'block';
+            
+            setTimeout(() => {
+                document.getElementById('newItemName').focus();
+                document.getElementById('newItemName').select();
+            }, 100);
+        }
+
+        function closeEditModal() {
+            console.log('🔴 closeEditModal called - resetting all states');
+            
+            // Complete reset when closing
+            document.getElementById('editItemModal').style.display = 'none';
+            document.getElementById('itemSuggestions').style.display = 'none';
+            
+            // Reset all variables
+            currentEditingIndex = -1;
+            currentOriginalName = '';
+            selectedItemName = '';
+            isSmartMode = false;
+            
+            // CRITICAL: Reset edit progress flag
+            editInProgress = false;
+            
+            // Reset all input fields
+            const newItemNameInput = document.getElementById('newItemName');
+            const searchItemNameInput = document.getElementById('searchItemName');
+            
+            newItemNameInput.value = '';
+            searchItemNameInput.value = '';
+            
+            // Reset input heights
+            adjustInputHeight(newItemNameInput);
+            adjustInputHeight(searchItemNameInput);
+            
+            document.getElementById('namePreview').textContent = '';
+            
+            // Reset Radio Buttons
+            const replaceRadio = document.querySelector('input[name="editMode"][value="replace"]');
+            if (replaceRadio) replaceRadio.checked = true;
+            
+            console.log('🔄 Modal completely reset');
+        }
+
+        function toggleEditMode() {
+            console.log('🔀 toggleEditMode called, isSmartMode was:', isSmartMode);
+            isSmartMode = !isSmartMode;
+            
+            if (isSmartMode) {
+                showSmartMode();
+            } else {
+                showSimpleMode();
+            }
+            console.log('🔀 toggleEditMode - isSmartMode now:', isSmartMode);
+        }
+
+        function showSimpleMode() {
+            console.log('📝 showSimpleMode called');
+            document.getElementById('simpleEditMode').style.display = 'block';
+            document.getElementById('smartEditMode').style.display = 'none';
+            document.getElementById('modeToggle').textContent = '🔍 Smart Mode';
+            document.getElementById('itemSuggestions').style.display = 'none';
+            
+            // Reset Smart Mode specific states
+            selectedItemName = '';
+            document.getElementById('searchItemName').value = '';
+            document.getElementById('namePreview').textContent = currentOriginalName;
+            
+            // Reset the simple mode input to current name
+            document.getElementById('newItemName').value = currentOriginalName;
+            
+            isSmartMode = false;
+            console.log('📝 Simple mode activated - selectedItemName reset');
+        }
+
+        function showSmartMode() {
+            console.log('🔍 showSmartMode called');
+            document.getElementById('simpleEditMode').style.display = 'none';
+            document.getElementById('smartEditMode').style.display = 'block';
+            document.getElementById('modeToggle').textContent = '📝 Simple Mode';
+            
+            // Reset Smart Mode states when switching TO smart mode
+            selectedItemName = '';
+            document.getElementById('searchItemName').value = '';
+            document.getElementById('itemSuggestions').style.display = 'none';
+            
+            // Reset radio buttons to default
+            const replaceRadio = document.querySelector('input[name="editMode"][value="replace"]');
+            if (replaceRadio) replaceRadio.checked = true;
+            
+            updatePreview();
+            isSmartMode = true;
+            console.log('🔍 Smart mode activated - all states reset, selectedItemName:', selectedItemName);
+            
+            // Focus on search field
+            setTimeout(() => {
+                document.getElementById('searchItemName').focus();
+            }, 100);
+        }
+
+        // Initialize smart edit handlers
+        function initializeSmartEditHandlers() {
+            const searchInput = document.getElementById('searchItemName');
+            const newItemInput = document.getElementById('newItemName');
+            const suggestionsDiv = document.getElementById('itemSuggestions');
+            
+            if (searchInput) {
+                // Remove any existing event listeners first
+                searchInput.removeEventListener('input', handleSearchInput);
+                searchInput.addEventListener('input', handleSearchInput);
+                
+                console.log('🔧 Smart edit handlers initialized');
+            }
+            
+            // Auto-grow input for long names
+            if (newItemInput) {
+                newItemInput.addEventListener('input', function() {
+                    adjustInputHeight(this);
+                });
+            }
+            
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    adjustInputHeight(this);
+                });
+            }
+            
+            // Listen for radio button changes  
+            const radioButtons = document.querySelectorAll('input[name="editMode"]');
+            radioButtons.forEach(radio => {
+                radio.removeEventListener('change', updatePreview);
+                radio.addEventListener('change', updatePreview);
+            });
+
+            // Hide suggestions when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.search-container')) {
+                    document.getElementById('itemSuggestions').style.display = 'none';
+                }
+            });
+        }
+
+        function adjustInputHeight(input) {
+            // Reset height to auto to get the correct scrollHeight
+            input.style.height = 'auto';
+            
+            // Check if content is longer than normal
+            if (input.scrollHeight > 44) {
+                input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+                input.classList.add('auto-grow');
+            } else {
+                input.style.height = '44px';
+                input.classList.remove('auto-grow');
+            }
+        }
+
+        function handleSearchInput(event) {
+            const query = event.target.value.toLowerCase().trim();
+            const suggestionsDiv = document.getElementById('itemSuggestions');
+            
+            console.log('🔍 Search input:', query);
+            
+            if (query.length < 2) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+            
+            // Filter items based on query
+            const matches = allSpecialItems.filter(item => 
+                item.toLowerCase().includes(query)
+            ).slice(0, 8); // Limit to 8 results
+            
+            console.log('🔍 Found matches:', matches.length);
+            
+            if (matches.length > 0) {
+                let html = '';
+                matches.forEach(item => {
+                    html += `<div class="suggestion-item" onclick="selectItem('${escapeForAttribute(item)}')">${escapeHtml(item)}</div>`;
+                });
+                suggestionsDiv.innerHTML = html;
+                suggestionsDiv.style.display = 'block';
+            } else {
+                suggestionsDiv.style.display = 'none';
+            }
+        }
+
+        // Fixed version of selectItem with global scope
+        function selectItem(itemName) {
+            console.log('🎯 DEBUG - selectItem called with:', itemName);
+            console.log('   - Before: selectedItemName was:', selectedItemName);
+            
+            selectedItemName = itemName;
+            document.getElementById('searchItemName').value = itemName;
+            document.getElementById('itemSuggestions').style.display = 'none';
+            
+            console.log('   - After: selectedItemName is now:', selectedItemName);
+            
+            updatePreview();
+        }
+
+        function updatePreview() {
+            const previewSpan = document.getElementById('namePreview');
+            const editMode = document.querySelector('input[name="editMode"]:checked')?.value || 'replace';
+            
+            console.log('🔄 updatePreview called - selectedItemName:', selectedItemName, 'editMode:', editMode);
+            
+            if (selectedItemName && selectedItemName.trim() !== '') {
+                if (editMode === 'replace') {
+                    previewSpan.textContent = selectedItemName;
+                } else { // extend
+                    previewSpan.textContent = `${currentOriginalName} - ${selectedItemName}`;
+                }
+            } else {
+                previewSpan.textContent = currentOriginalName;
+            }
+            
+            console.log('🔄 Preview updated to:', previewSpan.textContent);
+        }
+
+        function escapeForAttribute(str) {
+            return str.replace(/'/g, '\\\'').replace(/"/g, '&quot;');
+        }
+
+        // ========== ENHANCED SAVE ITEM NAME WITH RACE CONDITION PROTECTION ==========
+        async function saveItemName() {
+            console.log('💾 DEBUG - saveItemName called');
+            console.log('   - currentEditingIndex:', currentEditingIndex);
+            console.log('   - currentOriginalName:', currentOriginalName);
+            console.log('   - isSmartMode:', isSmartMode);
+            console.log('   - selectedItemName:', selectedItemName);
+            console.log('   - editInProgress:', editInProgress);
+            
+            // ========== CRITICAL: Prevent multiple simultaneous edits ==========
+            if (editInProgress) {
+                console.log('⚠️ WARNING: Edit already in progress, ignoring');
+                alert('Please wait, an edit is already in progress...');
+                return;
+            }
+            
+            if (currentEditingIndex === -1) {
+                console.error('❌ ERROR: No item selected for editing (currentEditingIndex = -1)');
+                alert('No item selected for editing');
+                return;
+            }
+
+            let newName = '';
+            
+            if (isSmartMode) {
+                // Smart mode: use preview name
+                const previewElement = document.getElementById('namePreview');
+                if (previewElement) {
+                    newName = previewElement.textContent.trim();
+                    console.log('🔍 Smart Mode - Preview text:', newName);
+                } else {
+                    console.error('❌ ERROR: namePreview element not found!');
+                    alert('Error: Could not get preview name. Please try simple mode.');
+                    return;
+                }
+            } else {
+                // Simple mode: use input field
+                const inputElement = document.getElementById('newItemName');
+                if (inputElement) {
+                    newName = inputElement.value.trim();
+                    console.log('📝 Simple Mode - Input value:', newName);
+                } else {
+                    console.error('❌ ERROR: newItemName input element not found!');
+                    alert('Error: Could not get input value. Please refresh the page.');
+                    return;
+                }
+            }
+            
+            console.log('   - Final newName:', newName);
+            
+            if (!newName) {
+                console.error('❌ ERROR: Empty new name');
+                alert('Please enter a new item name');
+                return;
+            }
+
+            // Friendly warning for very long names (but don't block)
+            if (newName.length > 200) {
+                const confirmLongName = confirm(
+                    `⚠️ Notice: The item name is quite long (${newName.length} characters).\n\n` +
+                    'This might affect display in the item list.\n\n' +
+                    'Continue with this name?'
+                );
+                
+                if (!confirmLongName) {
+                    console.log('   - User chose to edit the long name');
+                    return;
+                }
+            }
+
+            // Check if the name actually changed
+            if (newName === currentOriginalName) {
+                console.log('ℹ️ INFO: Name unchanged, closing modal');
+                closeEditModal();
+                return;
+            }
+
+            // Extra warning for default profile
+            const currentProfile = lastStats?.currentProfile || 'default';
+            console.log('   - Current profile:', currentProfile);
+            
+            if (currentProfile === 'default') {
+                const confirmEdit = confirm(
+                    '⚠️ Warning: You are editing an item in the "default" profile.\n\n' +
+                    'Item name changes may not be saved correctly due to a known issue.\n\n' +
+                    'For reliable editing, consider:\n' +
+                    '1. Creating a new profile (e.g. "main" or "runs")\n' +
+                    '2. Switching to that profile\n' +
+                    '3. Then editing your items\n\n' +
+                    'Continue anyway?'
+                );
+                
+                if (!confirmEdit) {
+                    console.log('   - User cancelled edit due to default profile warning');
+                    return;
+                }
+            }
+
+            // ========== CRITICAL: Set edit-in-progress flag ==========
+            editInProgress = true;
+            
+            // Show loading state
+            const saveButton = document.querySelector('.btn-save');
+            const originalSaveText = saveButton.innerHTML;
+            saveButton.innerHTML = '💾 Saving...';
+            saveButton.disabled = true;
+            
+            // Disable all edit buttons during editing
+            const editButtons = document.querySelectorAll('.edit-btn');
+            editButtons.forEach(btn => btn.disabled = true);
+
+            try {
+                console.log('🔧 Checking Go bindings...');
+                if (!window.go || !window.go.main || !window.go.main.App || !window.go.main.App.EditItemName) {
+                    throw new Error('Application connection not available. Please refresh the page.');
+                }
+                
+                console.log('✅ Go bindings available');
+                console.log('🚀 Calling EditItemName with:', currentEditingIndex, newName);
+                
+                const result = await window.go.main.App.EditItemName(currentEditingIndex, newName);
+                console.log('📥 EditItemName result:', result);
+                console.log('✅ EditItemName successful');
+                
+                // Success feedback
+                if (currentProfile === 'default') {
+                    alert('✅ Item name updated!\n\nNote: If the change doesn\'t persist after restart, please switch to a custom profile for reliable editing.');
+                }
+                
+                // Close modal
+                closeEditModal();
+                
+                // Force immediate update with timeout
+                console.log('🔄 Forcing immediate stats refresh...');
+                await new Promise(resolve => setTimeout(resolve, 100)); // Short pause
+                await updateStats();
+                
+                // Verification that the change arrived
+                setTimeout(async () => {
+                    await updateStats();
+                    console.log('✅ Edit completed successfully');
+                }, 500);
+                
+            } catch (error) {
+                console.error('❌ ERROR in saveItemName:', error);
+                console.error('   - Error type:', typeof error);
+                console.error('   - Error message:', error.message || error);
+                console.error('   - Error stack:', error.stack);
+                
+                let errorMessage = 'Error updating item name: ' + (error.message || error);
+                if (currentProfile === 'default') {
+                    errorMessage += '\n\n💡 Tip: Try creating a new profile for more reliable item editing.';
+                }
+                
+                alert(errorMessage);
+                
+                // On error: reload stats to ensure we're current
+                await updateStats();
+                
+            } finally {
+                // ========== CRITICAL: Reset loading state ==========
+                editInProgress = false;
+                if (saveButton) {
+                    saveButton.innerHTML = originalSaveText;
+                    saveButton.disabled = false;
+                }
+                
+                // Re-enable all edit buttons
+                const editButtons = document.querySelectorAll('.edit-btn');
+                editButtons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        // Modal event handlers
+        document.getElementById('newItemName').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                saveItemName();
+            } else if (e.key === 'Escape') {
+                closeEditModal();
+            }
+        });
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('editItemModal');
+            if (event.target === modal) {
+                closeEditModal();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeEditModal();
+            }
+        });
+
+        // ========== EXPORT FUNCTIONALITY ==========
+        async function exportItems() {
+            try {
+                if (!window.go || !window.go.main || !window.go.main.App) {
+                    alert('Connection error - cannot export');
+                    return;
+                }
+
+                const csvData = await window.go.main.App.ExportItems();
+                
+                // Create download link
+                const blob = new Blob([csvData], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                
+                // Generate filename with current date
+                const now = new Date();
+                const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+                const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+                
+                a.href = url;
+                a.download = `D2R_Items_Export_${dateStr}_${timeStr}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                console.log('✅ Items exported successfully');
+                
+                // Show success message
+                showExportSuccess();
+                
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Error exporting items: ' + error);
+            }
+        }
+
+        function showExportSuccess() {
+            // Quick visual feedback
+            const exportBtn = document.querySelector('.export-btn');
+            const originalText = exportBtn.innerHTML;
+            exportBtn.innerHTML = '✅ Exported!';
+            exportBtn.style.background = 'linear-gradient(45deg, #00ff41, #00cc33)';
+            exportBtn.style.color = '#000';
+            
+            setTimeout(() => {
+                exportBtn.innerHTML = originalText;
+                exportBtn.style.background = 'linear-gradient(45deg, #4169E1, #1E90FF)';
+                exportBtn.style.color = '#fff';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

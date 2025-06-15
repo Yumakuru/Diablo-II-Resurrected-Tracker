@@ -1,0 +1,27 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "d2r-tracker",
+  "outputfilename": "d2r-tracker",
+  "frontend": {
+    "dir": "./frontend",
+    "install": "",
+    "build": "",
+    "dev": "",
+    "package": "",
+    "watcher": null
+  },
+  "author": {
+    "name": "D2R Tracker",
+    "email": ""
+  },
+  "info": {
+    "companyName": "D2R Tools",
+    "productName": "D2R Kill Counter & Item Tracker",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright 2024",
+    "comments": "Diablo 2 Resurrected Kill Counter and Item Tracker"
+  },
+  "nsisType": "multiple",
+  "obfuscated": false,
+  "garbleargs": ""
+}
