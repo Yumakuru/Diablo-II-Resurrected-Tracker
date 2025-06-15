@@ -1,3 +1,5 @@
+ONLY OFFLINE USE
+
 🛡️ Diablo II: Resurrected Tracker
 A comprehensive tool for tracking kills, runs, and items in Diablo II: Resurrected
 This project provides a user-friendly way to track your progress in Diablo II: Resurrected – perfect for magic find sessions, boss runs, and item hunting!
