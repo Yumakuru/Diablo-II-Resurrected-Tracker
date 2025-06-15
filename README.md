@@ -14,6 +14,7 @@ This project provides a user-friendly way to track your progress in Diablo II: R
 Magic finders
 Stats enthusiasts who love analyzing drop rates
 
+## Credits
 This project is based on the open-source project [d2go](https://github.com/hectorgimenez/d2go) by Héctor Giménez
 Thank you to Héctor for providing this great foundation.
 
