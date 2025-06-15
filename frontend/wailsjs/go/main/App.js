@@ -26,6 +26,10 @@ export function GetFilteredItems() {
   return window['go']['main']['App']['GetFilteredItems']();
 }
 
+export function GetItemLists() {
+  return window['go']['main']['App']['GetItemLists']();
+}
+
 export function GetItemsPage(arg1, arg2) {
   return window['go']['main']['App']['GetItemsPage'](arg1, arg2);
 }

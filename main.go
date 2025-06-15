@@ -1,4 +1,4 @@
-// main.go - D2R Kill Counter & Item Tracker (KORRIGIERTER ITEM TRACKER)
+// main.go - D2R Kill Counter & Item Tracker (OPTIMIERT - Schritt 2: Utils ausgelagert)
 package main
 
 import (
@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,8 +20,6 @@ import (
 
 	"github.com/hectorgimenez/d2go/pkg/data"
 	"github.com/hectorgimenez/d2go/pkg/data/area"
-	"github.com/hectorgimenez/d2go/pkg/data/item"
-	"github.com/hectorgimenez/d2go/pkg/data/stat"
 	"github.com/hectorgimenez/d2go/pkg/memory"
 )
 
@@ -86,6 +85,19 @@ type ItemsResponse struct {
 	ShowAll        bool        `json:"show_all"`        // Ob alle Items angezeigt werden
 }
 
+// ========== ITEM DATA STRUCTURES ==========
+type ItemDatabase struct {
+	UniqueItems []string `json:"uniqueItems"`
+	SetItems    []string `json:"setItems"`
+}
+
+type ItemListResponse struct {
+	UniqueItems     []string `json:"unique_items"`
+	SetItems        []string `json:"set_items"`
+	AllSpecialItems []string `json:"all_special_items"`
+	TotalCount      int      `json:"total_count"`
+}
+
 type GameStats struct {
 	Normal         int         `json:"normal"`
 	Champion       int         `json:"champion"`
@@ -114,7 +126,7 @@ type GameStats struct {
 	ItemsData        ItemsResponse `json:"itemsData"`    // Neue strukturierte Item-Daten
 }
 
-// ========== APP STRUCT ==========
+// ========== APP STRUCT (ERWEITERT) ==========
 type App struct {
 	ctx         context.Context
 	gameReader  *ExtendedGameReader
@@ -153,12 +165,18 @@ type App struct {
 	// ========== ITEM DISPLAY SETTINGS ==========
 	itemsPerPage       int           // Configurable items per page
 	showAllItems       bool          // Whether to show all items or paginate
+
+	// ========== NEUE: AUSGELAGERTE DATEN ==========
+	itemDatabase       ItemDatabase       // Loaded from JSON file
+	xpTable           map[int]int64       // Loaded from xp_table.json
+	itemNameMapping   map[string]string   // Loaded from item_names.json
+	areaNameMapping   map[string]string   // Loaded from area_names.json
 }
 
 // ========== CONSTRUCTOR ==========
 func NewApp() *App {
 	now := time.Now()
-	return &App{
+	app := &App{
 		profilesDir:        getProfilesDir(),
 		killCounts:         make(map[string]int),
 		previousCorpses:    make(map[data.UnitID]CorpseInfo),
@@ -177,7 +195,314 @@ func NewApp() *App {
 		// ========== ITEM DISPLAY INITIALIZATION ==========
 		itemsPerPage:     50,     // Standard: 50 Items pro Seite
 		showAllItems:     false,  // Standard: Pagination
+		// ========== NEUE: DATEN INITIALIZATION ==========
+		itemDatabase:     ItemDatabase{},
+		xpTable:          make(map[int]int64),
+		itemNameMapping:  make(map[string]string),
+		areaNameMapping:  make(map[string]string),
 	}
+
+	// Load all external data files
+	if err := app.loadAllDataFiles(); err != nil {
+		fmt.Printf("⚠️ Warning: Could not load some data files: %v\n", err)
+		fmt.Println("💡 Some features may use fallback data")
+	}
+
+	return app
+}
+
+// ========== NEUE: LOAD ALL DATA FILES ==========
+func (a *App) loadAllDataFiles() error {
+	var errors []string
+
+	// Load item database
+	if err := a.loadItemDatabase(); err != nil {
+		errors = append(errors, fmt.Sprintf("items.json: %v", err))
+	}
+
+	// Load XP table
+	if err := a.loadXPTable(); err != nil {
+		errors = append(errors, fmt.Sprintf("xp_table.json: %v", err))
+	}
+
+	// Load item name mapping
+	if err := a.loadItemNameMapping(); err != nil {
+		errors = append(errors, fmt.Sprintf("item_names.json: %v", err))
+	}
+
+	// Load area name mapping
+	if err := a.loadAreaNameMapping(); err != nil {
+		errors = append(errors, fmt.Sprintf("area_names.json: %v", err))
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to load: %s", strings.Join(errors, ", "))
+	}
+
+	fmt.Println("✅ All data files loaded successfully")
+	return nil
+}
+
+// ========== NEUE: LOAD XP TABLE ==========
+func (a *App) loadXPTable() error {
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("could not get executable path: %v", err)
+	}
+
+	xpTablePath := filepath.Join(filepath.Dir(exePath), "xp_table.json")
+	
+	// Fallback: try current working directory
+	if _, err := os.Stat(xpTablePath); os.IsNotExist(err) {
+		xpTablePath = "xp_table.json"
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(xpTablePath); os.IsNotExist(err) {
+		fmt.Printf("⚠️ xp_table.json not found at: %s\n", xpTablePath)
+		return fmt.Errorf("xp_table.json not found")
+	}
+
+	// Read file
+	data, err := ioutil.ReadFile(xpTablePath)
+	if err != nil {
+		return fmt.Errorf("could not read xp_table.json: %v", err)
+	}
+
+	// Parse JSON into string->int64 map first
+	var stringMap map[string]int64
+	if err := json.Unmarshal(data, &stringMap); err != nil {
+		return fmt.Errorf("could not parse xp_table.json: %v", err)
+	}
+
+	// Convert to int->int64 map
+	a.xpTable = make(map[int]int64)
+	for levelStr, xp := range stringMap {
+		level, err := strconv.Atoi(levelStr)
+		if err != nil {
+			fmt.Printf("⚠️ Skipping invalid level: %s\n", levelStr)
+			continue
+		}
+		a.xpTable[level] = xp
+	}
+
+	fmt.Printf("✅ XP table loaded: %d levels\n", len(a.xpTable))
+	return nil
+}
+
+// ========== NEUE: LOAD ITEM NAME MAPPING ==========
+func (a *App) loadItemNameMapping() error {
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("could not get executable path: %v", err)
+	}
+
+	itemNamesPath := filepath.Join(filepath.Dir(exePath), "item_names.json")
+	
+	// Fallback: try current working directory
+	if _, err := os.Stat(itemNamesPath); os.IsNotExist(err) {
+		itemNamesPath = "item_names.json"
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(itemNamesPath); os.IsNotExist(err) {
+		fmt.Printf("⚠️ item_names.json not found at: %s\n", itemNamesPath)
+		return fmt.Errorf("item_names.json not found")
+	}
+
+	// Read file
+	data, err := ioutil.ReadFile(itemNamesPath)
+	if err != nil {
+		return fmt.Errorf("could not read item_names.json: %v", err)
+	}
+
+	// Parse JSON
+	if err := json.Unmarshal(data, &a.itemNameMapping); err != nil {
+		return fmt.Errorf("could not parse item_names.json: %v", err)
+	}
+
+	fmt.Printf("✅ Item name mapping loaded: %d items\n", len(a.itemNameMapping))
+	return nil
+}
+
+// ========== NEUE: LOAD AREA NAME MAPPING ==========
+func (a *App) loadAreaNameMapping() error {
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("could not get executable path: %v", err)
+	}
+
+	areaNamesPath := filepath.Join(filepath.Dir(exePath), "area_names.json")
+	
+	// Fallback: try current working directory
+	if _, err := os.Stat(areaNamesPath); os.IsNotExist(err) {
+		areaNamesPath = "area_names.json"
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(areaNamesPath); os.IsNotExist(err) {
+		fmt.Printf("⚠️ area_names.json not found at: %s\n", areaNamesPath)
+		return fmt.Errorf("area_names.json not found")
+	}
+
+	// Read file
+	data, err := ioutil.ReadFile(areaNamesPath)
+	if err != nil {
+		return fmt.Errorf("could not read area_names.json: %v", err)
+	}
+
+	// Parse JSON into string->string map first
+	var stringMap map[string]string
+	if err := json.Unmarshal(data, &stringMap); err != nil {
+		return fmt.Errorf("could not parse area_names.json: %v", err)
+	}
+
+	a.areaNameMapping = stringMap
+
+	fmt.Printf("✅ Area name mapping loaded: %d areas\n", len(a.areaNameMapping))
+	return nil
+}
+
+// ========== ITEM DATABASE FUNCTIONS ==========
+func (a *App) loadItemDatabase() error {
+	// Try to find items.json in the same directory as the executable
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("could not get executable path: %v", err)
+	}
+
+	itemsPath := filepath.Join(filepath.Dir(exePath), "items.json")
+	
+	// Fallback: try current working directory
+	if _, err := os.Stat(itemsPath); os.IsNotExist(err) {
+		itemsPath = "items.json"
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(itemsPath); os.IsNotExist(err) {
+		fmt.Printf("⚠️ items.json not found at: %s\n", itemsPath)
+		return fmt.Errorf("items.json not found")
+	}
+
+	// Read file
+	data, err := ioutil.ReadFile(itemsPath)
+	if err != nil {
+		return fmt.Errorf("could not read items.json: %v", err)
+	}
+
+	// Parse JSON
+	if err := json.Unmarshal(data, &a.itemDatabase); err != nil {
+		return fmt.Errorf("could not parse items.json: %v", err)
+	}
+
+	fmt.Printf("✅ Item database loaded successfully from: %s\n", itemsPath)
+	fmt.Printf("   - Unique items: %d\n", len(a.itemDatabase.UniqueItems))
+	fmt.Printf("   - Set items: %d\n", len(a.itemDatabase.SetItems))
+
+	return nil
+}
+
+// ========== NEW API METHOD FOR ITEM LISTS ==========
+func (a *App) GetItemLists() ItemListResponse {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	allSpecialItems := append(a.itemDatabase.UniqueItems, a.itemDatabase.SetItems...)
+	
+	// Sort the combined list
+	sort.Strings(allSpecialItems)
+
+	return ItemListResponse{
+		UniqueItems:     a.itemDatabase.UniqueItems,
+		SetItems:        a.itemDatabase.SetItems,
+		AllSpecialItems: allSpecialItems,
+		TotalCount:      len(allSpecialItems),
+	}
+}
+
+// ========== NEUE: XP FUNKTIONEN MIT EXTERNEN DATEN ==========
+func (a *App) getXPForLevel(level int) int64 {
+	if xp, exists := a.xpTable[level]; exists {
+		return xp
+	}
+	return 0
+}
+
+func (a *App) getXPToNextLevel(currentXP int64, currentLevel int) int64 {
+	// ========== SIMPLIFIED XP CALCULATION ==========
+	// Based on user's actual D2R data: Level 92 with 2,024,734,818 XP needs 2,097,310,703 for Level 93
+	
+	if currentLevel >= 90 {
+		// For high levels, use realistic progression based on actual D2R data
+		switch currentLevel {
+		case 90:
+			return int64(float64(currentXP) * 0.05) // ~5% more
+		case 91:
+			return int64(float64(currentXP) * 0.04) // ~4% more
+		case 92:
+			// User's exact data: needs 2,097,310,703 total, has 2,024,734,818
+			nextLevelTotal := int64(2097310703)
+			if currentXP >= nextLevelTotal {
+				return 0 // Already at or above next level
+			}
+			return nextLevelTotal - currentXP
+		case 93:
+			return int64(float64(currentXP) * 0.03) // ~3% more
+		case 94:
+			return int64(float64(currentXP) * 0.025) // ~2.5% more
+		case 95:
+			return int64(float64(currentXP) * 0.02) // ~2% more
+		case 96:
+			return int64(float64(currentXP) * 0.015) // ~1.5% more
+		case 97:
+			return int64(float64(currentXP) * 0.01) // ~1% more
+		case 98:
+			return int64(float64(currentXP) * 0.005) // ~0.5% more
+		default:
+			return 0 // Level 99 is max
+		}
+	}
+	
+	// For levels below 90, use the loaded table
+	nextLevelXP := a.getXPForLevel(currentLevel + 1)
+	if nextLevelXP == 0 {
+		return 0 // Max level reached
+	}
+	return nextLevelXP - currentXP
+}
+
+// ========== NEUE: ITEM NAME FUNCTION MIT EXTERNEN DATEN ==========
+func (a *App) getItemName(itm data.Item) string {
+	if itm.Name == "" {
+		return "Unknown Item"
+	}
+
+	rawName := string(itm.Name)
+
+	// Check if we have a known translation from loaded mapping
+	if displayName, found := a.itemNameMapping[rawName]; found {
+		fmt.Printf("🏷️ ITEM NAME MAPPED: '%s' -> '%s'\n", rawName, displayName)
+		return displayName
+	}
+
+	// Automatic CamelCase to spaces conversion
+	beautifiedName := a.beautifyItemName(rawName)
+
+	if beautifiedName != rawName {
+		fmt.Printf("🏷️ ITEM NAME BEAUTIFIED: '%s' -> '%s'\n", rawName, beautifiedName)
+	}
+
+	return beautifiedName
+}
+
+// ========== NEUE: AREA NAME FUNCTION MIT EXTERNEN DATEN ==========
+func (a *App) getAreaName(areaID area.ID) string {
+	// Convert area ID to string and lookup in mapping
+	areaIDStr := fmt.Sprintf("%d", areaID)
+	if areaName, found := a.areaNameMapping[areaIDStr]; found {
+		return areaName
+	}
+	return fmt.Sprintf("Area %d", areaID)
 }
 
 // ========== WAILS LIFECYCLE ==========
@@ -221,71 +546,6 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 
 func (a *App) Shutdown(ctx context.Context) {
 	fmt.Println("🔴 D2R Tracker shutdown")
-}
-
-// ========== XP TABLE FOR LEVEL CALCULATIONS ==========
-var xpTable = map[int]int64{
-	1: 0, 2: 500, 3: 1500, 4: 3750, 5: 7875, 6: 14175, 7: 22680, 8: 32886, 9: 44396, 10: 57715,
-	11: 72144, 12: 90180, 13: 112725, 14: 140906, 15: 176132, 16: 220165, 17: 275207, 18: 344008, 19: 430010, 20: 537045,
-	21: 669827, 22: 835384, 23: 1043072, 24: 1304511, 25: 1633587, 26: 2050432, 27: 2584677, 28: 3275200, 29: 4174038, 30: 5346855,
-	31: 6875208, 32: 8850058, 33: 11408158, 34: 14707003, 35: 18964309, 36: 24473582, 37: 31650887, 38: 41086171, 39: 53525811, 40: 69957624,
-	41: 91691762, 42: 120501929, 43: 158886883, 44: 210423898, 45: 279522614, 46: 372608871, 47: 498737525, 48: 671030513, 49: 906462756, 50: 1227333859,
-	51: 1667731625, 52: 2272357156, 53: 3104876251, 54: 4252143051, 55: 5838693925, 56: 8044304424, 57: 11116876343, 58: 15405053839, 59: 21421839488, 60: 29863845052,
-	61: 41774983550, 62: 58618736980, 63: 82520891374, 64: 116599580853, 65: 165603045197, 66: 236451765766, 67: 339776013836, 68: 490929180154, 69: 712671056074, 70: 1041046470985,
-	71: 1530411433097, 72: 2262430636153, 73: 3364063763781, 74: 5027983527266, 75: 7554758808657, 76: 11410056554455, 77: 17317411972952, 78: 26367503163062, 79: 40307265014134, 80: 61897015632986,
-	// ========== CORRECTED HIGH LEVEL XP VALUES (Based on D2R reality) ==========
-	81: 95379475181, 82: 147577204871, 83: 229374370373, 84: 358090031449, 85: 561492851017, 86: 883988877946, 87: 1396987892953, 88: 1800000000, 89: 1900000000, 90: 2000000000,
-	91: 1950000000, 92: 2024734818, 93: 2097310703, 94: 2200000000, 95: 2350000000, 96: 2500000000, 97: 2700000000, 98: 2900000000, 99: 3200000000,
-}
-
-func getXPForLevel(level int) int64 {
-	if xp, exists := xpTable[level]; exists {
-		return xp
-	}
-	return 0
-}
-
-func getXPToNextLevel(currentXP int64, currentLevel int) int64 {
-	// ========== SIMPLIFIED XP CALCULATION ==========
-	// Based on user's actual D2R data: Level 92 with 2,024,734,818 XP needs 2,097,310,703 for Level 93
-	
-	if currentLevel >= 90 {
-		// For high levels, use realistic progression based on actual D2R data
-		switch currentLevel {
-		case 90:
-			return int64(float64(currentXP) * 0.05) // ~5% more
-		case 91:
-			return int64(float64(currentXP) * 0.04) // ~4% more
-		case 92:
-			// User's exact data: needs 2,097,310,703 total, has 2,024,734,818
-			nextLevelTotal := int64(2097310703)
-			if currentXP >= nextLevelTotal {
-				return 0 // Already at or above next level
-			}
-			return nextLevelTotal - currentXP
-		case 93:
-			return int64(float64(currentXP) * 0.03) // ~3% more
-		case 94:
-			return int64(float64(currentXP) * 0.025) // ~2.5% more
-		case 95:
-			return int64(float64(currentXP) * 0.02) // ~2% more
-		case 96:
-			return int64(float64(currentXP) * 0.015) // ~1.5% more
-		case 97:
-			return int64(float64(currentXP) * 0.01) // ~1% more
-		case 98:
-			return int64(float64(currentXP) * 0.005) // ~0.5% more
-		default:
-			return 0 // Level 99 is max
-		}
-	}
-	
-	// For levels below 90, use the traditional table
-	nextLevelXP := getXPForLevel(currentLevel + 1)
-	if nextLevelXP == 0 {
-		return 0 // Max level reached
-	}
-	return nextLevelXP - currentXP
 }
 
 // ========== MAIN API METHODS (JavaScript accessible) ==========
@@ -923,7 +1183,7 @@ func (a *App) updateXPTracking() {
 	a.xpTracking.CurrentLevel = currentLevel
 
 	// Calculate XP to next level
-	a.xpTracking.XPToNextLevel = getXPToNextLevel(currentXP, currentLevel)
+	a.xpTracking.XPToNextLevel = a.getXPToNextLevel(currentXP, currentLevel)
 
 	// Calculate XP per hour
 	sessionDuration := time.Since(a.sessionStartTime).Hours()
@@ -1060,21 +1320,7 @@ func (a *App) calculateRunsToNextLevel() {
 }
 
 // ========== ITEM TRACKING ==========
-func (a *App) trackItemsFromGround(currentGroundItems map[string]data.Item) {
-	now := time.Now()
-	for lastKey, lastGroundItem := range a.lastGroundItems {
-		if _, stillOnGround := currentGroundItems[lastKey]; !stillOnGround {
-			itemName := a.getItemName(lastGroundItem)
-			a.itemsFromGround[itemName] = now
-		}
-	}
-}
-
-func (a *App) isValidPickup(newItem data.Item) bool {
-	itemName := a.getItemName(newItem)
-	_, wasFromGround := a.itemsFromGround[itemName]
-	return wasFromGround
-}
+// (Item tracking utility functions moved to utils.go)
 
 // ========== FIXED ITEM PICKUP FUNCTION ==========
 func (a *App) onItemPickedUp(itm data.Item) {
@@ -1131,9 +1377,6 @@ func (a *App) onItemPickedUp(itm data.Item) {
 
 	go a.SaveCurrentProfile()
 }
-
-// Rest der Funktionen bleiben gleich wie vorher...
-// (isFilteredItem, getItemName, getItemAffixes, etc. - alles unverändert)
 
 func (a *App) isFilteredItem(itemName string) bool {
 	// Debug: Show every item check
@@ -1221,290 +1464,11 @@ func (a *App) isFilteredItem(itemName string) bool {
 	return false
 }
 
-// Rest of the file continues with all the other functions unchanged...
-// (getItemName, getItemAffixes, beautifyItemName, etc.)
-
-func (a *App) getItemName(itm data.Item) string {
-	if itm.Name == "" {
-		return "Unknown Item"
-	}
-
-	rawName := string(itm.Name)
-
-	// First level: Known item names mapping (common items)
-	knownItems := map[string]string{
-		"SerpentskinArmor":        "Serpentskin Armor",
-		"StuddedLeather":          "Studded Leather",
-		"ChainMail":               "Chain Mail",
-		"SplintMail":              "Splint Mail",
-		"PlateMail":               "Plate Mail",
-		"FieldPlate":              "Field Plate",
-		"GothicPlate":             "Gothic Plate",
-		"FullPlateMail":           "Full Plate Mail",
-		"LeatherArmor":            "Leather Armor",
-		"HardLeatherArmor":        "Hard Leather Armor",
-		"RingMail":                "Ring Mail",
-		"ScaleMail":               "Scale Mail",
-		"BrestPlate":              "Brest Plate",
-		"LightPlate":              "Light Plate",
-		"BronzePlate":             "Bronze Plate",
-		"BattlePlate":             "Battle Plate",
-		"WarHat":                  "War Hat",
-		"Sallet":                  "Sallet",
-		"Casque":                  "Casque",
-		"Basinet":                 "Basinet",
-		"WingedHelm":              "Winged Helm",
-		"GrandCrown":              "Grand Crown",
-		"DeathMask":               "Death Mask",
-		"GhostArmor":              "Ghost Armor",
-		"DemonhideArmor":          "Demonhide Armor",
-		"TrellisedArmor":          "Trellised Armor",
-		"LinkedMail":              "Linked Mail",
-		"TigulatedMail":           "Tigulated Mail",
-		"MeshArmor":               "Mesh Armor",
-		"CuirBouilli":             "Cuir Bouilli",
-		"GothicBow":               "Gothic Bow",
-		"CompositeBow":            "Composite Bow",
-		"BattleBow":               "Battle Bow",
-		"WarBow":                  "War Bow",
-		"LongBow":                 "Long Bow",
-		"ShortBow":                "Short Bow",
-		"HuntersBow":              "Hunter's Bow",
-		"LongSword":               "Long Sword",
-		"BroadSword":              "Broad Sword",
-		"CrystalSword":            "Crystal Sword",
-		"FalcataSword":            "Falcata Sword",
-		"TwoHandedSword":          "Two-Handed Sword",
-		"WarSword":                "War Sword",
-		"BastardSword":            "Bastard Sword",
-		"HandAxe":                 "Hand Axe",
-		"Hatchet":                 "Hatchet",
-		"Cleaver":                 "Cleaver",
-		"BroadAxe":                "Broad Axe",
-		"BattleAxe":               "Battle Axe",
-		"LargeAxe":                "Large Axe",
-		"GreatAxe":                "Great Axe",
-		"GiantAxe":                "Giant Axe",
-		"WalkingStick":            "Walking Stick",
-		"GnarledStaff":            "Gnarled Staff",
-		"BattleStaff":             "Battle Staff",
-		"WarStaff":                "War Staff",
-		"LongStaff":               "Long Staff",
-		"QuarterStaff":            "Quarter Staff",
-		"LeatherGloves":           "Leather Gloves",
-		"HeavyGloves":             "Heavy Gloves",
-		"ChainGloves":             "Chain Gloves",
-		"LightGauntlets":          "Light Gauntlets",
-		"Gauntlets":               "Gauntlets",
-		"LeatherBoots":            "Leather Boots",
-		"HeavyBoots":              "Heavy Boots",
-		"ChainBoots":              "Chain Boots",
-		"LightPlatedBoots":        "Light Plated Boots",
-		"Greaves":                 "Greaves",
-		"BeltPouch":               "Belt Pouch",
-		"SashBelt":                "Sash Belt",
-		"LightBelt":               "Light Belt",
-		"HeavyBelt":               "Heavy Belt",
-		"PlatedBelt":              "Plated Belt",
-		"SmallShield":             "Small Shield",
-		"LargeShield":             "Large Shield",
-		"KiteShield":              "Kite Shield",
-		"TowerShield":             "Tower Shield",
-		"GothicShield":            "Gothic Shield",
-		"BoneShield":              "Bone Shield",
-		"SpikedShield":            "Spiked Shield",
-		"BladeTalons":             "Blade Talons",
-		"ScissorsSuwayyah":        "Scissors Suwayyah",
-		"Quhab":                   "Quhab",
-		"Wristblade":              "Wrist Blade",
-		"HandScythe":              "Hand Scythe",
-		"GreaterTalons":           "Greater Talons",
-		"GreaterClaws":            "Greater Claws",
-		"HealingPotion":           "Healing Potion",
-		"ManaPotion":              "Mana Potion",
-		"RejuvenationPotion":      "Rejuvenation Potion",
-		"FullRejuvenationPotion":  "Full Rejuvenation Potion",
-		"StaminaPotion":           "Stamina Potion",
-		"AntidotePotion":          "Antidote Potion",
-		"ThawingPotion":           "Thawing Potion",
-	}
-
-	// Check if we have a known translation
-	if displayName, found := knownItems[rawName]; found {
-		fmt.Printf("🏷️ ITEM NAME MAPPED: '%s' -> '%s'\n", rawName, displayName)
-		return displayName
-	}
-
-	// Automatic CamelCase to spaces conversion
-	beautifiedName := a.beautifyItemName(rawName)
-
-	if beautifiedName != rawName {
-		fmt.Printf("🏷️ ITEM NAME BEAUTIFIED: '%s' -> '%s'\n", rawName, beautifiedName)
-	}
-
-	return beautifiedName
-}
-
-// ========== PHASE 2: ENHANCED ITEM AFFIX DETECTION ==========
-
-func (a *App) getItemAffixes(itm data.Item) string {
-	var affixes []string
-
-	// For items with detailed affix information available
-	switch itm.Quality {
-	case item.QualityMagic:
-		// Magic items - try to get prefix/suffix info if available
-		if itm.IdentifiedName != "" && itm.IdentifiedName != string(itm.Name) {
-			return itm.IdentifiedName // Use identified name if available
-		}
-
-	case item.QualityRare:
-		// Rare items - try to extract affix information
-		if itm.IdentifiedName != "" && itm.IdentifiedName != string(itm.Name) {
-			return itm.IdentifiedName // Use identified name if available
-		}
-
-	case item.QualitySet:
-		// Set items - add set name if available
-		if itm.IsNamed && itm.IdentifiedName != "" {
-			affixes = append(affixes, fmt.Sprintf("Set: %s", itm.IdentifiedName))
-		}
-
-	case item.QualityUnique:
-		// Unique items - add unique name if available
-		if itm.IsNamed && itm.IdentifiedName != "" {
-			affixes = append(affixes, fmt.Sprintf("Unique: %s", itm.IdentifiedName))
-		}
-	}
-
-	// Add special properties
-	if itm.Ethereal {
-		affixes = append(affixes, "Ethereal")
-	}
-
-	if itm.HasSockets && len(itm.Sockets) > 0 {
-		socketInfo := fmt.Sprintf("%d Sockets", len(itm.Sockets))
-		// Add socketed rune/gem info if available
-		var socketNames []string
-		for _, socketedItem := range itm.Sockets {
-			socketNames = append(socketNames, a.getItemName(socketedItem))
-		}
-		if len(socketNames) > 0 {
-			socketInfo += fmt.Sprintf(" (%s)", strings.Join(socketNames, ", "))
-		}
-		affixes = append(affixes, socketInfo)
-	}
-
-	if itm.IsRuneword {
-		affixes = append(affixes, fmt.Sprintf("Runeword: %s", itm.RunewordName))
-	}
-
-	// Add level requirement if significant
-	if itm.LevelReq > 30 {
-		affixes = append(affixes, fmt.Sprintf("Req Level %d", itm.LevelReq))
-	}
-
-	// Join all affixes
-	return strings.Join(affixes, " • ")
-}
-
-func (a *App) beautifyItemName(name string) string {
-	if name == "" {
-		return name
-	}
-
-	// Convert CamelCase to "Proper Case" with spaces
-	var result strings.Builder
-
-	for i, char := range name {
-		// Add spaces before capital letters (except at the beginning)
-		if i > 0 && char >= 'A' && char <= 'Z' {
-			// Check if the previous letter was lowercase (CamelCase)
-			prev := rune(name[i-1])
-			if prev >= 'a' && prev <= 'z' {
-				result.WriteRune(' ')
-			}
-			// Or if we have a sequence of capital letters and the next one is lowercase
-			if i < len(name)-1 {
-				next := rune(name[i+1])
-				if prev >= 'A' && prev <= 'Z' && next >= 'a' && next <= 'z' {
-					result.WriteRune(' ')
-				}
-			}
-		}
-		result.WriteRune(char)
-	}
-
-	return result.String()
-}
-
-func (a *App) getItemQuality(itm data.Item) string {
-	switch itm.Quality {
-	case item.QualityNormal:
-		return "Normal"
-	case item.QualitySuperior:
-		return "Superior"
-	case item.QualityMagic:
-		return "Magic"
-	case item.QualityRare:
-		return "Rare"
-	case item.QualitySet:
-		return "Set"
-	case item.QualityUnique:
-		return "Unique"
-	default:
-		return "Unknown"
-	}
-}
-
-func (a *App) getCurrentInventory(gameData data.Data) map[string]data.Item {
-	inventory := make(map[string]data.Item)
-	for _, itm := range gameData.Inventory.AllItems {
-		if itm.Name != "" && itm.Location.LocationType != item.LocationCursor {
-			if itm.Location.LocationType == item.LocationInventory ||
-				itm.Location.LocationType == item.LocationBelt ||
-				itm.Location.LocationType == item.LocationCube {
-				itemKey := a.getItemKey(itm)
-				inventory[itemKey] = itm
-			}
-		}
-	}
-	return inventory
-}
-
-func (a *App) getGroundItems(gameData data.Data) map[string]data.Item {
-	groundItems := make(map[string]data.Item)
-	for _, itm := range gameData.Inventory.AllItems {
-		if itm.Name != "" && itm.Location.LocationType == item.LocationGround {
-			itemKey := a.getItemKey(itm)
-			groundItems[itemKey] = itm
-		}
-	}
-	return groundItems
-}
-
-func (a *App) initializeInventory(gameData data.Data) {
-	a.lastInventory = a.getCurrentInventory(gameData)
-	a.lastGroundItems = a.getGroundItems(gameData)
-}
-
-func (a *App) getItemKey(itm data.Item) string {
-	return fmt.Sprintf("%s_%v_%d_%d_%d",
-		itm.Name, itm.Location.LocationType, itm.Location.Page, itm.Position.X, itm.Position.Y)
-}
+// ========== ITEM AFFIX FUNCTIONS ==========
+// (Moved to utils.go)
 
 // ========== PROFILE MANAGEMENT ==========
-func getProfilesDir() string {
-	exePath, err := os.Executable()
-	if err != nil {
-		return "./profiles"
-	}
-	return filepath.Join(filepath.Dir(exePath), "profiles")
-}
-
-func (a *App) getProfileFilePath(profile string) string {
-	return filepath.Join(a.profilesDir, profile+".json")
-}
+// (Moved to utils.go)
 
 func (a *App) LoadProfile(profile string) {
 	filePath := a.getProfileFilePath(profile)
@@ -1579,283 +1543,15 @@ func (a *App) LoadProfile(profile string) {
 	a.itemsFromGround = make(map[string]time.Time)
 }
 
-func (a *App) listProfiles() []string {
-	var profiles []string
-	files, err := ioutil.ReadDir(a.profilesDir)
-	if err != nil {
-		return []string{"default"}
-	}
-
-	for _, f := range files {
-		if !f.IsDir() && strings.HasSuffix(f.Name(), ".json") {
-			name := strings.TrimSuffix(f.Name(), ".json")
-			profiles = append(profiles, name)
-		}
-	}
-
-	if len(profiles) == 0 {
-		profiles = []string{"default"}
-	}
-
-	sort.Strings(profiles)
-	return profiles
-}
+// ========== PROFILE LOADING ==========
+// (Profile utilities moved to utils.go)
 
 // ========== HELPER FUNCTIONS ==========
-func (a *App) getRunStats() (fastest, slowest, average int64) {
-	if len(a.runTimes) == 0 {
-		return 0, 0, 0
-	}
-
-	fastest = a.runTimes[0]
-	slowest = a.runTimes[0]
-	var sum int64 = 0
-
-	for _, t := range a.runTimes {
-		if t < fastest {
-			fastest = t
-		}
-		if t > slowest {
-			slowest = t
-		}
-		sum += t
-	}
-
-	average = sum / int64(len(a.runTimes))
-	return
-}
-
-func formatDuration(ms int64) string {
-	if ms == 0 {
-		return "00:00:00"
-	}
-	d := time.Duration(ms) * time.Millisecond
-	return d.Truncate(time.Second).String()
-}
-
-// ========== HELPER FUNCTIONS FOR PLAYER DATA ==========
-
-func (a *App) getPlayerClassName() string {
-	// Use cached game data if available
-	if a.lastGameData.PlayerUnit.Class > 0 {
-		switch a.lastGameData.PlayerUnit.Class {
-		case 0:
-			return "Amazon"
-		case 1:
-			return "Sorceress"
-		case 2:
-			return "Necromancer"
-		case 3:
-			return "Paladin"
-		case 4:
-			return "Barbarian"
-		case 5:
-			return "Druid"
-		case 6:
-			return "Assassin"
-		default:
-			return fmt.Sprintf("Unknown (%d)", a.lastGameData.PlayerUnit.Class)
-		}
-	}
-	return "Unknown"
-}
-
-func (a *App) getCurrentAreaName() string {
-	// Use cached game data if available
-	if a.lastGameData.PlayerUnit.Area > 0 {
-		return a.getAreaName(a.lastGameData.PlayerUnit.Area)
-	}
-	return "Unknown"
-}
-
-func (a *App) getPlayerLevel() int {
-	// Use XP tracking level if available and valid
-	if a.xpTracking.CurrentLevel > 0 {
-		return a.xpTracking.CurrentLevel
-	}
-
-	// Fallback to game data
-	if a.lastGameData.PlayerUnit.Area > 0 {
-		return a.getPlayerLevelFromStats(a.lastGameData.PlayerUnit)
-	}
-
-	return 1 // Default level
-}
-
-func (a *App) getPlayerLevelFromStats(playerUnit data.PlayerUnit) int {
-	// Try to find level stat using the most common stat ID
-	if levelStat, found := playerUnit.Stats.FindStat(stat.Level, 0); found {
-		fmt.Printf("📊 LEVEL STAT FOUND: %d\n", levelStat.Value)
-		return int(levelStat.Value)
-	}
-
-	// Try alternative stat IDs
-	for _, statID := range []stat.ID{stat.Level, stat.ID(12), stat.ID(13)} {
-		if levelStat, found := playerUnit.Stats.FindStat(statID, 0); found {
-			fmt.Printf("📊 LEVEL STAT FOUND (ID %v): %d\n", statID, levelStat.Value)
-			return int(levelStat.Value)
-		}
-	}
-
-	fmt.Printf("⚠️ LEVEL STAT NOT FOUND, available stats: %d\n", len(playerUnit.Stats))
-	// Debug: print available stats
-	for i, statData := range playerUnit.Stats {
-		if i < 5 { // Only show first 5 to avoid spam
-			fmt.Printf("   Stat[%d]: ID=%v, Value=%d\n", i, statData.ID, statData.Value)
-		}
-	}
-
-	return 1 // Default level
-}
-
-func (a *App) getPlayerExperience(playerUnit data.PlayerUnit) int64 {
-	// Try to find experience stat
-	if expStat, found := playerUnit.Stats.FindStat(stat.Experience, 0); found {
-		fmt.Printf("📊 EXP STAT FOUND: %d\n", expStat.Value)
-		return int64(expStat.Value)
-	}
-
-	// Try alternative stat IDs for experience
-	for _, statID := range []stat.ID{stat.Experience, stat.ID(13), stat.ID(14)} {
-		if expStat, found := playerUnit.Stats.FindStat(statID, 0); found {
-			fmt.Printf("📊 EXP STAT FOUND (ID %v): %d\n", statID, expStat.Value)
-			return int64(expStat.Value)
-		}
-	}
-
-	fmt.Printf("⚠️ EXP STAT NOT FOUND\n")
-	return 0
-}
-
-func (a *App) getAreaName(areaID area.ID) string {
-	// Simplified area name mapping - could be extended
-	switch areaID {
-	case 1:
-		return "Rogue Encampment"
-	case 2:
-		return "Blood Moor"
-	case 3:
-		return "Cold Plains"
-	case 4:
-		return "Stony Field"
-	case 5:
-		return "Dark Wood"
-	case 6:
-		return "Black Marsh"
-	case 27:
-		return "Jail Level 1"
-	case 28:
-		return "Jail Level 2"
-	case 29:
-		return "Jail Level 3"
-	case 30:
-		return "Inner Cloister"
-	case 31:
-		return "Cathedral"
-	case 32:
-		return "Catacombs Level 1"
-	case 33:
-		return "Catacombs Level 2"
-	case 34:
-		return "Catacombs Level 3"
-	case 35:
-		return "Catacombs Level 4"
-	case 40:
-		return "Lut Gholein"
-	case 54:
-		return "Arcane Sanctuary"
-	case 55:
-		return "Canyon of the Magi"
-	case 56:
-		return "Tal Rasha's Tomb"
-	case 73:
-		return "Tal Rasha's Chamber"
-	case 75:
-		return "Kurast Docks"
-	case 76:
-		return "Spider Forest"
-	case 77:
-		return "Great Marsh"
-	case 78:
-		return "Flayer Jungle"
-	case 79:
-		return "Lower Kurast"
-	case 80:
-		return "Kurast Bazaar"
-	case 81:
-		return "Upper Kurast"
-	case 82:
-		return "Kurast Causeway"
-	case 83:
-		return "Travincal"
-	case 84:
-		return "Durance of Hate Level 1"
-	case 85:
-		return "Durance of Hate Level 2"
-	case 86:
-		return "Durance of Hate Level 3"
-	case 103:
-		return "The Pandemonium Fortress"
-	case 104:
-		return "Outer Steppes"
-	case 105:
-		return "Plains of Despair"
-	case 106:
-		return "City of the Damned"
-	case 107:
-		return "River of Flame"
-	case 108:
-		return "Chaos Sanctuary"
-	case 109:
-		return "Harrogath"
-	case 110:
-		return "Bloody Foothills"
-	case 111:
-		return "Frigid Highlands"
-	case 112:
-		return "Arreat Plateau"
-	case 113:
-		return "Crystalline Passage"
-	case 114:
-		return "Frozen River"
-	case 115:
-		return "Glacial Trail"
-	case 116:
-		return "Drifter Cavern"
-	case 117:
-		return "Frozen Tundra"
-	case 118:
-		return "The Ancients' Way"
-	case 119:
-		return "Icy Cellar"
-	case 120:
-		return "Arreat Summit"
-	case 121:
-		return "Nihlathak's Temple"
-	case 122:
-		return "Halls of Anguish"
-	case 123:
-		return "Halls of Pain"
-	case 124:
-		return "Halls of Vaught"
-	case 131:
-		return "Worldstone Keep Level 1"
-	case 132:
-		return "Worldstone Keep Level 2"
-	case 133:
-		return "Worldstone Keep Level 3"
-	case 134:
-		return "Throne of Destruction"
-	case 135:
-		return "The Worldstone Chamber"
-	default:
-		return fmt.Sprintf("Area %d", areaID)
-	}
-}
+// (Moved to utils.go)
 
 // ========== MAIN ==========
 func main() {
-	fmt.Println("🎮 Starting D2R Kill Counter & Item Tracker (KORRIGIERTER ITEM TRACKER)...")
+	fmt.Println("🎮 Starting D2R Kill Counter & Item Tracker (OPTIMIERT - Schritt 2: Utils ausgelagert)...")
 
 	// Create an instance of the app structure
 	app := NewApp()

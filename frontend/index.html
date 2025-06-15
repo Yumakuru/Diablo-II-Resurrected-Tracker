@@ -1280,9 +1280,52 @@
             lastUpdateTime: null      // Last time we updated the timer
         };
 
+        // ========== ITEM DATA LOADING ==========
+        let uniqueItems = [];
+        let setItems = [];
+        let allSpecialItems = [];
+
+        // Load item data from JSON file
+        async function loadItemData() {
+            try {
+                console.log('🔄 Loading item data from items.json...');
+                const response = await fetch('items.json');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                uniqueItems = data.uniqueItems || [];
+                setItems = data.setItems || [];
+                allSpecialItems = [...uniqueItems, ...setItems].sort();
+                
+                console.log('✅ Item data loaded successfully');
+                console.log('   - Unique items:', uniqueItems.length);
+                console.log('   - Set items:', setItems.length);
+                console.log('   - Total special items:', allSpecialItems.length);
+                
+                return true;
+            } catch (error) {
+                console.error('❌ Error loading item data:', error);
+                
+                // Fallback: Use empty arrays if loading fails
+                uniqueItems = [];
+                setItems = [];
+                allSpecialItems = [];
+                
+                // Show warning to user
+                console.warn('⚠️ Using empty item lists as fallback');
+                return false;
+            }
+        }
+
         // Initialize the app
-        window.addEventListener('DOMContentLoaded', function() {
+        window.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 DOM Content Loaded - Initializing app...');
+            
+            // Load item data first
+            await loadItemData();
             
             setTimeout(() => {
                 console.log('📡 Starting update system and loading profiles...');
@@ -1391,6 +1434,11 @@
             console.log('   - window.go available:', !!window.go);
             console.log('   - EditItemName available:', !!(window.go?.main?.App?.EditItemName));
             
+            console.log('📝 Item Data Status:');
+            console.log('   - Unique items loaded:', uniqueItems.length);
+            console.log('   - Set items loaded:', setItems.length);
+            console.log('   - Total special items:', allSpecialItems.length);
+            
             console.log('🔍 ==> END DEBUG REPORT <==');
         }
 
@@ -1493,7 +1541,8 @@
                 backendConnection: await testBackendConnection(),
                 indexVerification: verifyItemIndices(),
                 editingState: currentEditingIndex !== -1,
-                modalState: document.getElementById('editItemModal')?.style.display !== 'none'
+                modalState: document.getElementById('editItemModal')?.style.display !== 'none',
+                itemDataLoaded: allSpecialItems.length > 0
             };
             
             console.log('📊 Diagnostic Results:', results);
@@ -1507,6 +1556,11 @@
             if (!results.indexVerification) {
                 console.log('🔧 Index problems detected, refreshing item list...');
                 await updateStats();
+            }
+
+            if (!results.itemDataLoaded) {
+                console.log('🔧 Item data not loaded, attempting reload...');
+                await loadItemData();
             }
             
             console.log('🏥 ==> DIAGNOSTIC COMPLETE <==');
@@ -2252,97 +2306,6 @@
         let isSmartMode = false;
         let selectedItemName = '';
 
-        // Complete lists of Unique and Set items
-        const uniqueItems = [
-            "Goldstrike Arch", "Ghostflame", "Nagelring", "Harlequin Crest", "Skewer of Krintiz", "Umbral Disk", "Lance Guard", 
-            "Homunculus", "Ormus' Robes", "Demon Machine", "Hellcast", "The Oculus", "Gore Rider", "Blackleach Blade", 
-            "Blade Of Ali Baba", "Griffon's Eye", "Witchwild String", "Kuko Shakaku", "Skystrike", "The Impaler", "Tarnhelm", 
-            "Kelpie Snare", "Carin Shard", "Langer Briser", "Pelta Lunata", "Todesfaelle Flamme", "The Jade Tan Do", "Hexfire", 
-            "Hellfire Torch", "The Stone of Jordan", "Hone Sundan", "Husoldal Evo", "Seraph's Hymn", "The Centurion", 
-            "Tyrael's Might", "Darkforce Spawn", "Herald Of Zakarum", "Pierre Tombale Couant", "Duriel's Shell", 
-            "Buriza-Do Kyanon", "Venom Ward", "Viperfork", "Darksight Helm", "Rainbow Facet: Poison Death", "Bloodtree Stump", 
-            "Bone Break", "Skull Collector", "Blood Crescent", "Jalal's Mane", "Boneshade", "Windforce", "Demonhorn's Edge", 
-            "Skullder's Ire", "The Cranium Basher", "Snowclash", "Headstriker", "Arachnid Mesh", "Spike Thorn", "Lycander's Aim", 
-            "Bloodletter", "Titan's Revenge", "Lidless Wall", "Bul-Kathos' Wedding Band", "Black Cleft", "Atma's Scarab", 
-            "Ghoulhide", "The Reaper's Toll", "Woestave", "Demon Limb", "Doombringer", "The Grandfather", "Biggin's Bonnet", 
-            "Stormrider", "Death's Fathom", "Wisp Projector", "Bing Sz Wang", "Wizardspike", "Azurewrath", "Stormspire", 
-            "Ribcracker", "Raven Claw", "Flamebellow", "Ravenlore", "Death's Web", "The Gavel Of Pain", "Boneslayer Blade", 
-            "The Minotaur", "Rockstopper", "Rattlecage", "The Cat's Eye", "The Rising Sun", "The Redeemer", "Heaven's Light", 
-            "Metalgrid", "Mara's Kaleidoscope", "Highlord's Wrath", "Crescent Moon", "Saracen's Chance", "The Mahim-Oak Curio", 
-            "The Eye of Etlich", "Nokozan Relic", "Nature's Peace", "Carrion Wind", "Raven Frost", "Dwarf Star", "Manald Heal", 
-            "Veil of Steel", "Nightwing's Veil", "Templar's Might", "Earth Shifter", "Stormlash", "Horizon's Tornado", 
-            "Lightsabre", "Schaefer's Hammer", "Stone Crusher", "Coldkill", "Giant Skull", "Maelstrom", "Steel Pillar", 
-            "Swordguard", "Gheed's Fortune", "Suicide Branch", "Soulfeast Tine", "Blackhand Key", "Arm of King Leoric", 
-            "Gargoyle's Bite", "Boneflesh", "Verdungo's Hearty Cord", "The Meat Scraper", "Messerschmidt's Reaver", 
-            "Crown of Ages", "Spectral Shard", "The Scalper", "Wraith Flight", "Que-Hegan's Wisdom", "Gimmershred", 
-            "Skin of the Vipermagi", "Lacerator", "Bonesnap", "Skull Splitter", "The Gnasher", "Spirit Ward", "Gleamscythe", 
-            "Shadowfang", "Wizendraw", "String of Ears", "Spirit Forge", "Frostwind", "Rune Master", "Magewrath", "Leadcrow", 
-            "The Battlebranch", "Executioner's Justice", "The Grim Reaper", "Serpent Lord", "Spineripper", "The Diggler", 
-            "Gut Siphon", "Endlesshail", "Stormspike", "Riphook", "Sureshrill Frost", "The Atlantean", "Rainbow Facet: Cold Level-up", 
-            "Heart Carver", "Peasant Crown", "Fleshripper", "Grim's Burning Dead", "Pus Spitter", "Rixot's Keen", "Shaftstop", 
-            "The Tannr Gorerod", "Baranar's Star", "Warshrike", "Deathbit", "Razor's Edge", "Bloodrise", "Stoneraven", 
-            "Lycander's Flank", "Ume's Lament", "Windhammer", "Rakescar", "Spirit Keeper", "Gravenspine", "Treads of Cthon", 
-            "Cliffkiller", "Wolfhowl", "Bloodthief", "Razortine", "Moonfall", "Demon's Arch", "Hellrack", "Stormshield", 
-            "Gull", "Leviathan", "Andariel's Visage", "Baezil's Vortex", "Wormskull", "Hellslayer", "The Fetid Sprinkler", 
-            "Rainbow Facet: Fire Level-up", "Rainbow Facet: Fire Death", "Rainbow Facet: Cold Death", "Sandstorm Trek", 
-            "Twitchthroe", "The Face of Horror", "Eaglehorn", "Stormstrike", "Steeldriver", "Mang Song's Lesson", "Djinn Slayer", 
-            "The Iron Jang Bong", "Stealskull", "Goblin Toe", "Swordback Hold", "Lava Gout", "Shadow Dancer", "Dracul's Grasp", 
-            "Tiamat's Rebuke", "Guardian Angel", "The Vile Husk", "Halaberd's Reign", "Arreat's Face", "Crainte Vomir", 
-            "Gerke's Sanctuary", "Guardian Naga", "Greyform", "Skin of the Flayed One", "The Dragon Chang", "Ethereal Edge", 
-            "Chance Guards", "Hand of Blessed Light", "Thunderstroke", "Darkglow", "Butcher's Pupil", "Goldskin", "Medusa's Gaze", 
-            "Goldwrap", "Arkaine's Valor", "Nord's Tenderizer", "Hellclap", "Cold Rupture", "Griswold's Edge", "Blackbog's Sharp", 
-            "Corpsemourn", "Venom Grip", "Shadow Killer", "Black Hades", "Dragonscale", "Arioc's Needle", "Silks of the Victor", 
-            "Plague Bearer", "Annihilus", "Kinemil's Awl", "Blinkbat's Form", "Undead Crown", "Stormchaser", "Tearhaunch", 
-            "Crack of the Heavens", "Rotting Fissure", "Astreon's Iron Ward", "Steel Carapace", "Blackoak Shield", "Radament's Sphere", 
-            "Bonehew", "Waterwalk", "Fleshrender", "Infernostride", "The Gladiator's Bane", "Head Hunter's Glory", "Flame Rift", 
-            "Valkyrie Wing", "Torch of Iro", "Stormeye", "Cranebeak", "Zakarum's Hand", "Ichorsting", "Stormguild", "Blackhorn's Face", 
-            "Steel Shade", "Culwen's Point", "Stoutnail", "Crushflange", "Axe of Fechmar", "The Spirit Shroud", "Vampire Gaze", 
-            "Sparking Mail", "Iceblink", "Knell Striker", "Ginther's Rift", "The Ward", "Dark Clan Crusher", "Moser's Blessed Circle", 
-            "Hawkmail", "Crow Caw", "Howltusk", "Rockfleece", "Heavenly Garb", "Iron Pelt", "Toothrow", "Pompeii's Wrath", 
-            "Duskdeep", "Coif of Glory", "Earthshaker", "Ironstone", "Wall of the Eyeless", "Atma's Wail", "Visceratuant", 
-            "Steelclash", "Kira's Guardian", "Alma Negra", "Bverrit Keep", "Crown of Thieves", "Chromatic Ire", "Eschuta's Temper", 
-            "Bloodmoon", "Coldsteel Eye", "Widowmaker", "The Salamander", "Islestrike", "Magefist", "Gloom's Trap", "Tomb Reaver", 
-            "Bartuc's Cut-Throat", "Doomslinger", "Lance of Yaggai", "Ripsaw", "Blacktongue", "Rusthandle", "War Traveler", 
-            "Hellplague", "Jade Talon", "Razortail", "Razorswitch", "Silkweave", "The Chieftain", "Bloodfist", 
-            "The General's Tan Do Li Ga", "Cloudcrack", "Soul Harvest", "Thundergod's Vigor", "Bladebone", "Warlord's Trust", 
-            "Goreshovel", "Ondal's Wisdom", "Spire of Honor", "Deathspade", "Soulflay", "Athena's Wrath", "Humongous", 
-            "Spire of Lazarus", "Brainhew", "Dimoak's Hew", "Marrowwalk", "Blood Raven's Charge", "Rogue's Bow", 
-            "Rainbow Facet: Lightning Death", "Rainbow Facet: Lightning Level-up", "Rainbow Facet: Poison Level-up", 
-            "Witherstring", "Warpspear", "The Patriarch", "The Hand of Broc", "Steelrend", "Steelgoad", "Spellsteel", 
-            "Soul Drainer", "Snakecord", "Pluckeye", "Nosferatu's Coil", "Nightsmoke", "Lenymo", "Hotspur", "Hellmouth", 
-            "Gravepalm", "Gorefoot", "Frostburn", "Firelizard's Talons", "Felloak", "Death Cleaver", "Cerebus' Bite", 
-            "Boneflame", "Blastbark", "Bladebuckle", "Bane Ash"
-        ];
-
-        const setItems = [
-            "Angelic Sickle", "Angelic Mantle", "Angelic Halo", "Angelic Wings", "Arcanna's Sign", "Arcanna's Deathwand", 
-            "Arcanna's Head", "Arcanna's Flesh", "Arctic Furs", "Arctic Binding", "Arctic Mitts", "Arctic Horn", 
-            "Berserker's Headgear", "Berserker's Hauberk", "Berserker's Hatchet", "Cathan's Rule", "Cathan's Mesh", 
-            "Cathan's Visage", "Cathan's Sigil", "Cathan's Seal", "Civerb's Ward", "Civerb's Icon", "Civerb's Cudgel", 
-            "Cleglaw's Tooth", "Cleglaw's Claw", "Cleglaw's Pincers", "Death's Hand", "Death's Touch", "Death's Guard", 
-            "Hsarus' Iron Heel", "Hsarus' Iron Fist", "Hsarus' Iron Stay", "Infernal Cranium", "Infernal Torch", 
-            "Infernal Sign", "Iratha's Collar", "Iratha's Cuff", "Iratha's Coil", "Iratha's Cord", "Isenhart's Lightbrand", 
-            "Isenhart's Parry", "Isenhart's Case", "Isenhart's Horns", "Milabrega's Orb", "Milabrega's Rod", "Milabrega's Diadem", 
-            "Milabrega's Robe", "Sigon's Visor", "Sigon's Shelter", "Sigon's Gage", "Sigon's Sabot", "Sigon's Wrap", 
-            "Sigon's Guard", "Tancred's Spine", "Tancred's Crowbill", "Tancred's Hobnails", "Tancred's Weird", "Tancred's Skull", 
-            "Vidala's Barb", "Vidala's Fetlock", "Vidala's Ambush", "Vidala's Snare", "Bul-Kathos' Sacred Charge", 
-            "Bul-Kathos' Tribal Guardian", "Cow King's Horns", "Cow King's Hide", "Cow King's Hoofs", "Dangoon's Teaching", 
-            "Taebaek's Glory", "Haemosu's Adamant", "Ondal's Almighty", "Hwanin's Splendor", "Hwanin's Refuge", "Hwanin's Blessing", 
-            "Hwanin's Justice", "Naj's Puzzler", "Naj's Light Plate", "Naj's Circlet", "Guillaume's Face", "Wilhelm's Pride", 
-            "Magnus' Skin", "Whitstan's Guard", "Sander's Paragon", "Sander's Riprap", "Sander's Taboo", "Sander's Superstition", 
-            "Sazabi's Cobalt Redeemer", "Sazabi's Ghost Liberator", "Sazabi's Mental Sheath", "Telling of Beads", "Laying of Hands", 
-            "Rite of Passage", "Dark Adherent", "Credendum", "Aldur's Stony Gaze", "Aldur's Deception", "Aldur's Rhythm", 
-            "Aldur's Advance", "Griswold's Valor", "Griswold's Heart", "Griswold's Redemption", "Griswold's Honor", 
-            "Immortal King's Will", "Immortal King's Soul Cage", "Immortal King's Detail", "Immortal King's Forge", 
-            "Immortal King's Pillar", "Immortal King's Stone Crusher", "M'avina's True Sight", "M'avina's Embrace", 
-            "M'avina's Icy Clutch", "M'avina's Tenet", "M'avina's Caster", "Natalya's Totem", "Natalya's Mark", "Natalya's Shadow", 
-            "Natalya's Soul", "Tal Rasha's Fine Spun Cloth", "Tal Rasha's Adjudication", "Tal Rasha's Lidless Eye", 
-            "Tal Rasha's Guardianship", "Tal Rasha's Horadric Crest", "Trang-Oul's Guise", "Trang-Oul's Scales", 
-            "Trang-Oul's Wing", "Trang-Oul's Claws", "Trang-Oul's Girth"
-        ];
-
-        const allSpecialItems = [...uniqueItems, ...setItems].sort();
-
         // ========== ENHANCED RACE-CONDITION-SAFE EDIT MODAL FUNCTIONS ==========
 
         function openEditModalSafe(arrayIndex, buttonElement) {
@@ -2680,6 +2643,14 @@
                 return;
             }
             
+            // Check if item data is loaded
+            if (allSpecialItems.length === 0) {
+                console.warn('⚠️ No item data available for search');
+                suggestionsDiv.innerHTML = '<div class="suggestion-item">Item data not loaded</div>';
+                suggestionsDiv.style.display = 'block';
+                return;
+            }
+            
             // Filter items based on query
             const matches = allSpecialItems.filter(item => 
                 item.toLowerCase().includes(query)
@@ -2695,7 +2666,8 @@
                 suggestionsDiv.innerHTML = html;
                 suggestionsDiv.style.display = 'block';
             } else {
-                suggestionsDiv.style.display = 'none';
+                suggestionsDiv.innerHTML = '<div class="suggestion-item">No matches found</div>';
+                suggestionsDiv.style.display = 'block';
             }
         }
 

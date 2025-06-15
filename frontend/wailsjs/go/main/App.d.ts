@@ -14,6 +14,8 @@ export function GetAllItems():Promise<Array<main.ItemEntry>>;
 
 export function GetFilteredItems():Promise<Array<string>>;
 
+export function GetItemLists():Promise<main.ItemListResponse>;
+
 export function GetItemsPage(arg1:number,arg2:number):Promise<main.ItemsResponse>;
 
 export function GetStats():Promise<main.GameStats>;

@@ -197,6 +197,24 @@ export namespace main {
 		}
 	}
 	
+	export class ItemListResponse {
+	    unique_items: string[];
+	    set_items: string[];
+	    all_special_items: string[];
+	    total_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ItemListResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.unique_items = source["unique_items"];
+	        this.set_items = source["set_items"];
+	        this.all_special_items = source["all_special_items"];
+	        this.total_count = source["total_count"];
+	    }
+	}
 	
 
 }
